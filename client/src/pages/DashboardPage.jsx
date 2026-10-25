@@ -30,12 +30,17 @@ export default function DashboardPage() {
     return <Navigate to="/login" replace />;
   }
 
+  if (user.role === 'ALUMNI') {
+    return <Navigate to="/alumni/dashboard" replace />;
+  }
+
   const actions = {
     STUDENT: [
       ['Browse opportunities', 'Explore roles and internships matched to your next step.', '/jobs', true],
       ['My applications', 'Check application progress and upcoming interviews.', '/applications'],
       ['Your profile', 'Update academic details, skills, and private resume.', '/profile'],
-      ['Find alumni mentors', 'Connect with graduates who can share career advice.', '/alumni']
+      ['Find alumni mentors', 'Connect with graduates who can share career advice.', '/alumni'],
+      ['Career resources', 'Read approved alumni advice and opportunity recommendations.', '/career-resources']
     ],
     RECRUITER: user.isApproved ? [
       ['Company and openings', 'Update your company profile and manage job opportunities.', '/recruiter/jobs', true]
@@ -43,12 +48,10 @@ export default function DashboardPage() {
     PLACEMENT_OFFICER: [
       ['Recruiter approvals', 'Review new recruiter accounts and approval requests.', '/admin/recruiters', true],
       ['Placement analytics', 'Explore placement reports, announcements, and campus drives.', '/admin/analytics'],
-      ['Student management', 'Search student academic records and application totals.', '/admin/students']
+      ['Student management', 'Search student academic records and application totals.', '/admin/students'],
+      ['Alumni participation', 'Verify alumni and review resources, opportunity leads, and event volunteers.', '/admin/alumni-review']
     ],
-    ALUMNI: [
-      ['Your alumni profile', 'Share your professional experience and career interests.', '/alumni/me', true],
-      ['Mentorship requests', 'Review and respond to student requests for guidance.', '/mentorship-requests']
-    ]
+    ALUMNI: []
   }[user.role] || [];
 
   return (

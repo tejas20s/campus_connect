@@ -69,6 +69,9 @@ describe('CampusConnect auth API', () => {
     expect(response.body.paths['/students/me/resume']).toBeDefined();
     expect(response.body.paths['/students/me/profile-image']).toBeDefined();
     expect(response.body.paths['/admin/students']).toBeDefined();
+    expect(response.body.paths['/alumni/dashboard']).toBeDefined();
+    expect(response.body.paths['/career-resources']).toBeDefined();
+    expect(response.body.paths['/mentorship-requests/{requestId}/messages']).toBeDefined();
   });
 
   it('allows Placement Officers to search students without exposing private fields', async () => {

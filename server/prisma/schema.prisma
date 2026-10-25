@@ -43,105 +43,120 @@ enum MentorshipStatus {
   DECLINED
 }
 
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
-  id              String          @id @default(cuid())
-  email           String          @unique
-  passwordHash    String
-  role            Role            @default(STUDENT)
-  isApproved      Boolean         @default(false)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  studentProfile  StudentProfile?
-  recruiterProfile RecruiterProfile?
-  alumniProfile   AlumniProfile?
-  notifications   Notification[]  @relation("UserNotifications")
-  auditLogs       AuditLog[]      @relation("UserAuditLogs")
-  announcements   Announcement[]  @relation("AnnouncementAuthor")
+  id                          String                      @id @default(cuid())
+  email                       String                      @unique
+  passwordHash                String
+  role                        Role                        @default(STUDENT)
+  isApproved                  Boolean                     @default(false)
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
+  studentProfile              StudentProfile?
+  recruiterProfile            RecruiterProfile?
+  alumniProfile               AlumniProfile?
+  notifications               Notification[]              @relation("UserNotifications")
+  auditLogs                   AuditLog[]                  @relation("UserAuditLogs")
+  announcements               Announcement[]              @relation("AnnouncementAuthor")
+  reviewedAlumniResources     CareerResource[]            @relation("ResourceReviewer")
+  reviewedAlumniOpportunities OpportunityRecommendation[] @relation("OpportunityReviewer")
+  mentorshipMessages          MentorshipMessage[]
 }
 
 model StudentProfile {
-  id              String            @id @default(cuid())
-  userId          String            @unique
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fullName        String
-  branch          String?
-  graduationYear  Int?
-  cgpa            Float?
-  phone           String?
-  portfolioLinks  Json?
-  resumeUrl       String?
-  profileImageUrl String?
-  skills          String[]          @default([])
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  applications    Application[]    @relation("StudentApplications")
+  id                 String              @id @default(cuid())
+  userId             String              @unique
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName           String
+  branch             String?
+  graduationYear     Int?
+  cgpa               Float?
+  phone              String?
+  portfolioLinks     Json?
+  resumeUrl          String?
+  profileImageUrl    String?
+  skills             String[]            @default([])
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  applications       Application[]       @relation("StudentApplications")
   mentorshipRequests MentorshipRequest[] @relation("StudentMentorshipRequests")
 }
 
 model RecruiterProfile {
-  id             String          @id @default(cuid())
-  userId         String          @unique
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String         @id @default(cuid())
+  userId         String         @unique
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   companyId      String?
-  company        Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  company        Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
   designation    String?
-  approvalStatus ApprovalStatus  @default(PENDING)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  approvalStatus ApprovalStatus @default(PENDING)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 model Company {
-  id              String           @id @default(cuid())
-  name            String           @unique
+  id              String             @id @default(cuid())
+  name            String             @unique
   industry        String?
   website         String?
   location        String?
   description     String?
   logoUrl         String?
-  isVerified      Boolean          @default(false)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  isVerified      Boolean            @default(false)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
   recruiters      RecruiterProfile[]
   jobs            Job[]
   placementDrives PlacementDrive[]
 }
 
 model AlumniProfile {
-  id                 String              @id @default(cuid())
-  userId             String              @unique
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fullName           String
-  graduationYear     Int?
-  department         String?
-  currentCompany     String?
-  jobTitle           String?
-  skills             String[]            @default([])
-  bio                String?
-  linkedinUrl        String?
-  website            String?
-  isPublic           Boolean             @default(true)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  mentorshipRequests MentorshipRequest[] @relation("AlumniMentorshipRequests")
+  id                         String                      @id @default(cuid())
+  userId                     String                      @unique
+  user                       User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName                   String
+  graduationYear             Int?
+  department                 String?
+  currentCompany             String?
+  jobTitle                   String?
+  skills                     String[]                    @default([])
+  mentoringTopics            String[]                    @default([])
+  professionalExperience     String?
+  bio                        String?
+  linkedinUrl                String?
+  website                    String?
+  isPublic                   Boolean                     @default(true)
+  isVerified                 Boolean                     @default(false)
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  mentorshipRequests         MentorshipRequest[]         @relation("AlumniMentorshipRequests")
+  careerResources            CareerResource[]
+  opportunityRecommendations OpportunityRecommendation[]
+  eventVolunteering          DriveVolunteer[]
 }
 
 model Job {
-  id               String            @id @default(cuid())
-  companyId        String
-  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  title            String
-  description      String
-  location         String
-  type             JobType           @default(FULL_TIME)
-  salaryMin        Int?
-  salaryMax        Int?
-  deadline         DateTime
-  eligibility      Json?
-  isPublished      Boolean           @default(false)
-  isArchived       Boolean           @default(false)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  applications     Application[]
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title        String
+  description  String
+  location     String
+  type         JobType       @default(FULL_TIME)
+  salaryMin    Int?
+  salaryMax    Int?
+  deadline     DateTime
+  eligibility  Json?
+  isPublished  Boolean       @default(false)
+  isArchived   Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  applications Application[]
 }
 
 model Application {
@@ -173,38 +188,105 @@ model Interview {
 }
 
 model PlacementDrive {
-  id          String    @id @default(cuid())
+  id          String           @id @default(cuid())
   title       String
   companyId   String?
-  company     Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  company     Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
   date        DateTime
   location    String
   description String?
-  isPublished Boolean   @default(true)
-  createdAt   DateTime  @default(now())
+  isPublished Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  volunteers  DriveVolunteer[]
 }
 
 model Announcement {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   title       String
   message     String
-  type        String    @default("GENERAL")
+  type        String   @default("GENERAL")
   authorId    String?
-  author      User?     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
-  isPublished Boolean   @default(true)
-  createdAt   DateTime  @default(now())
+  author      User?    @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
 }
 
 model MentorshipRequest {
-  id          String          @id @default(cuid())
-  studentId   String
-  alumniId    String
-  message     String
-  status      MentorshipStatus @default(PENDING)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  student     StudentProfile  @relation("StudentMentorshipRequests", fields: [studentId], references: [id], onDelete: Cascade)
-  alumni      AlumniProfile   @relation("AlumniMentorshipRequests", fields: [alumniId], references: [id], onDelete: Cascade)
+  id        String              @id @default(cuid())
+  studentId String
+  alumniId  String
+  message   String
+  status    MentorshipStatus    @default(PENDING)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  student   StudentProfile      @relation("StudentMentorshipRequests", fields: [studentId], references: [id], onDelete: Cascade)
+  alumni    AlumniProfile       @relation("AlumniMentorshipRequests", fields: [alumniId], references: [id], onDelete: Cascade)
+  messages  MentorshipMessage[]
+}
+
+model MentorshipMessage {
+  id                  String            @id @default(cuid())
+  mentorshipRequestId String
+  authorId            String
+  content             String            @db.VarChar(4000)
+  createdAt           DateTime          @default(now())
+  request             MentorshipRequest @relation(fields: [mentorshipRequestId], references: [id], onDelete: Cascade)
+  author              User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([mentorshipRequestId, createdAt])
+}
+
+model CareerResource {
+  id         String        @id @default(cuid())
+  alumniId   String
+  title      String        @db.VarChar(160)
+  summary    String        @db.VarChar(2000)
+  url        String        @db.VarChar(1000)
+  category   String        @db.VarChar(80)
+  status     ReviewStatus  @default(PENDING)
+  reviewerId String?
+  reviewedAt DateTime?
+  createdAt  DateTime      @default(now())
+  alumni     AlumniProfile @relation(fields: [alumniId], references: [id], onDelete: Cascade)
+  reviewer   User?         @relation("ResourceReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([alumniId, createdAt])
+}
+
+model OpportunityRecommendation {
+  id         String        @id @default(cuid())
+  alumniId   String
+  title      String        @db.VarChar(160)
+  company    String        @db.VarChar(160)
+  location   String        @db.VarChar(160)
+  type       JobType       @default(FULL_TIME)
+  url        String        @db.VarChar(1000)
+  details    String        @db.VarChar(2000)
+  status     ReviewStatus  @default(PENDING)
+  reviewerId String?
+  reviewedAt DateTime?
+  createdAt  DateTime      @default(now())
+  alumni     AlumniProfile @relation(fields: [alumniId], references: [id], onDelete: Cascade)
+  reviewer   User?         @relation("OpportunityReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([alumniId, createdAt])
+}
+
+model DriveVolunteer {
+  id        String         @id @default(cuid())
+  driveId   String
+  alumniId  String
+  note      String?        @db.VarChar(1000)
+  status    ReviewStatus   @default(PENDING)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  drive     PlacementDrive @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  alumni    AlumniProfile  @relation(fields: [alumniId], references: [id], onDelete: Cascade)
+
+  @@unique([driveId, alumniId])
+  @@index([status, createdAt])
 }
 
 model Notification {
@@ -219,12 +301,12 @@ model Notification {
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  actorId     String?
-  actor       User?    @relation("UserAuditLogs", fields: [actorId], references: [id], onDelete: SetNull)
-  action      String
+  id           String   @id @default(cuid())
+  actorId      String?
+  actor        User?    @relation("UserAuditLogs", fields: [actorId], references: [id], onDelete: SetNull)
+  action       String
   resourceType String
-  resourceId  String
-  details     Json?
-  createdAt   DateTime @default(now())
+  resourceId   String
+  details      Json?
+  createdAt    DateTime @default(now())
 }

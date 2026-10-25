@@ -230,6 +230,7 @@ export default function PlacementAnalyticsPage() {
             <p className="text-sm uppercase tracking-wider text-brand-300">Placement office</p>
             <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Placement analytics</h1>
             <p className="mt-2 text-slate-400">Live metrics calculated from CampusConnect records.</p>
+            <Link to="/admin/alumni-review" className="mt-4 inline-flex rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-brand-300 hover:border-brand-400/50">Review alumni participation</Link>
           </div>
           <button type="button" onClick={exportCsv} className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold hover:border-brand-400">Export selected placements CSV</button>
         </header>

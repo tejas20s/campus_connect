@@ -14,6 +14,8 @@ CampusConnect is a college placement and alumni portal built with React, Express
 - Application status updates, interview scheduling data, and in-app application status notifications.
 - Student profile editing, private JPEG/PNG profile-image and PDF resume uploads with MIME/signature/size checks, and short-lived private Cloudinary URLs.
 - Public alumni directory with search/filter/pagination, profile privacy control, and student-to-alumni mentorship requests with accepted/declined transitions.
+- Alumni-specific dashboard with mentoring topics and experience, verified profile badges, private accepted-mentorship guidance threads, moderated career resources and opportunity recommendations, and volunteer requests for placement drives.
+- Placement Officer queue for alumni verification, resource/opportunity review, and event-volunteer decisions; only approved alumni submissions are visible in the student career resource feed.
 - Placement Officer analytics, filters, Recharts visualizations, selected-placement CSV export, announcements, placement drives, and recruiter approval.
 - Placement Officer student registry with search, academic filters, pagination, and privacy-safe application totals.
 - Per-user notifications and read status; optional Resend messages for registration, applications, and status/interview updates using a branded, escaped email template.
@@ -50,6 +52,15 @@ npm run db:generate
 npm run db:seed
 npm run dev
 ```
+
+For an existing database after pulling updates, apply new migrations before restarting the API:
+
+```powershell
+npm run db:deploy
+npm run db:generate
+```
+
+Alumni can open their dedicated workspace at `/alumni/dashboard` after signing in. New career resources, opportunity recommendations, and event volunteer requests remain pending until a Placement Officer reviews them. Approved guidance and opportunity recommendations are shown on `/career-resources`.
 
 The Vite client runs at `http://localhost:5173`; the API runs at `http://localhost:5000`. Prisma scripts and the server load the root `.env` file. If PostgreSQL uses another port, update the URL accordingly.
 

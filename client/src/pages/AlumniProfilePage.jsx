@@ -19,6 +19,8 @@ function toForm(profile) {
     currentCompany: profile.currentCompany || '',
     jobTitle: profile.jobTitle || '',
     skills: (profile.skills || []).join(', '),
+    mentoringTopics: (profile.mentoringTopics || []).join(', '),
+    professionalExperience: profile.professionalExperience || '',
     bio: profile.bio || '',
     linkedinUrl: profile.linkedinUrl || '',
     website: profile.website || '',
@@ -78,6 +80,8 @@ export default function AlumniProfilePage() {
         currentCompany: form.currentCompany.trim() || null,
         jobTitle: form.jobTitle.trim() || null,
         skills: form.skills.split(',').map((skill) => skill.trim()).filter(Boolean),
+        mentoringTopics: form.mentoringTopics.split(',').map((topic) => topic.trim()).filter(Boolean),
+        professionalExperience: form.professionalExperience.trim() || null,
         bio: form.bio.trim() || null,
         linkedinUrl: form.linkedinUrl.trim() || null,
         website: form.website.trim() || null,
@@ -151,6 +155,12 @@ export default function AlumniProfilePage() {
               <label className="text-sm text-slate-300">Skills (comma-separated)
                 <input maxLength={1000} value={form.skills} onChange={(event) => updateForm('skills', event.target.value)} className={inputClass} />
               </label>
+              <label className="text-sm text-slate-300">Mentoring topics (comma-separated)
+                <input maxLength={2000} value={form.mentoringTopics} onChange={(event) => updateForm('mentoringTopics', event.target.value)} placeholder="Interview preparation, DevOps, career transitions" className={inputClass} />
+              </label>
+              <label className="text-sm text-slate-300 sm:col-span-2">Professional experience and education
+                <textarea rows={4} maxLength={5000} value={form.professionalExperience} onChange={(event) => updateForm('professionalExperience', event.target.value)} placeholder="Share relevant roles, projects, certifications, or further study." className={inputClass} />
+              </label>
               <label className="text-sm text-slate-300 sm:col-span-2">About
                 <textarea rows={5} maxLength={2000} value={form.bio} onChange={(event) => updateForm('bio', event.target.value)} className={inputClass} />
               </label>
@@ -176,12 +186,27 @@ export default function AlumniProfilePage() {
             <p className="mt-2 text-slate-400">
               {[profile.department, profile.graduationYear && `Class of ${profile.graduationYear}`].filter(Boolean).join(' · ') || 'Department not listed'}
             </p>
+            {profile.isVerified && <span className="mt-3 inline-flex rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">Placement Office verified</span>}
             {profile.bio && <p className="mt-6 whitespace-pre-wrap leading-7 text-slate-300">{profile.bio}</p>}
+            {profile.professionalExperience && (
+              <section className="mt-6">
+                <h3 className="text-sm font-semibold text-slate-200">Professional experience</h3>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{profile.professionalExperience}</p>
+              </section>
+            )}
             {profile.skills?.length > 0 && (
               <section className="mt-6">
                 <h3 className="text-sm font-semibold text-slate-200">Skills</h3>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {profile.skills.map((skill) => <span key={skill} className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">{skill}</span>)}
+                </div>
+              </section>
+            )}
+            {profile.mentoringTopics?.length > 0 && (
+              <section className="mt-6">
+                <h3 className="text-sm font-semibold text-slate-200">Topics I can mentor</h3>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {profile.mentoringTopics.map((topic) => <span key={topic} className="rounded-full bg-indigo-500/15 px-3 py-1 text-xs text-indigo-200">{topic}</span>)}
                 </div>
               </section>
             )}

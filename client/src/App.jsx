@@ -17,6 +17,9 @@ import MentorshipRequestsPage from './pages/MentorshipRequestsPage';
 import PlacementAnalyticsPage from './pages/PlacementAnalyticsPage';
 import NotificationsPage from './pages/NotificationsPage';
 import StudentManagementPage from './pages/StudentManagementPage';
+import AlumniDashboardPage from './pages/AlumniDashboardPage';
+import AlumniReviewPage from './pages/AlumniReviewPage';
+import CareerResourcesPage from './pages/CareerResourcesPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 export default function App() {
@@ -28,6 +31,30 @@ export default function App() {
       <Route path="/jobs" element={<JobsPage />} />
       <Route path="/jobs/:jobId" element={<JobDetailsPage />} />
       <Route path="/alumni" element={<AlumniDirectoryPage />} />
+      <Route
+        path="/alumni/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['ALUMNI']}>
+            <AlumniDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/career-resources"
+        element={
+          <ProtectedRoute allowedRoles={['STUDENT', 'ALUMNI', 'PLACEMENT_OFFICER']}>
+            <CareerResourcesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/alumni-review"
+        element={
+          <ProtectedRoute allowedRoles={['PLACEMENT_OFFICER']}>
+            <AlumniReviewPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/alumni/me"
         element={

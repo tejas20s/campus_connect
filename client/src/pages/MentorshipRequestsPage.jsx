@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 
@@ -116,6 +116,9 @@ export default function MentorshipRequestsPage() {
                       </button>
                     </div>
                   )}
+                  {request.status === 'ACCEPTED' && (
+                    <MentorshipConversation requestId={request.id} />
+                  )}
                 </article>
               );
             })}
@@ -131,5 +134,69 @@ export default function MentorshipRequestsPage() {
         )}
       </div>
     </main>
+  );
+}
+
+function MentorshipConversation({ requestId }) {
+  const [messages, setMessages] = useState([]);
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadMessages = useCallback(async () => {
+    const { data } = await api.get(`/mentorship-requests/${requestId}/messages`);
+    setMessages(data.data);
+  }, [requestId]);
+
+  useEffect(() => {
+    let active = true;
+    loadMessages()
+      .catch((requestError) => {
+        if (active) setError(requestError.response?.data?.message || 'Unable to load this conversation.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [loadMessages]);
+
+  async function sendMessage(event) {
+    event.preventDefault();
+    setSending(true);
+    setError('');
+    try {
+      await api.post(`/mentorship-requests/${requestId}/messages`, { content });
+      setContent('');
+      await loadMessages();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to send your message.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className="mt-5 border-t border-slate-800 pt-4">
+      <h3 className="font-semibold">Guidance conversation</h3>
+      {error && <p role="alert" className="mt-3 text-sm text-red-200">{error}</p>}
+      {loading ? <p className="mt-3 text-sm text-slate-400">Loading conversation...</p> : messages.length ? (
+        <ol className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+          {messages.map((item) => (
+            <li key={item.id} className="rounded-lg bg-slate-950 p-3">
+              <p className="text-xs font-medium text-brand-300">{item.author.alumniProfile?.fullName || item.author.studentProfile?.fullName || 'Mentorship participant'} · {new Date(item.createdAt).toLocaleString()}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-200">{item.content}</p>
+            </li>
+          ))}
+        </ol>
+      ) : <p className="mt-3 text-sm text-slate-400">Share interview preparation tips, learning guidance, or a next step to get started.</p>}
+      <form onSubmit={sendMessage} className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <label className="sr-only" htmlFor={`message-${requestId}`}>Send a guidance message</label>
+        <textarea id={`message-${requestId}`} required maxLength={4000} rows={2} value={content} onChange={(event) => setContent(event.target.value)} placeholder="Write a career guidance message..." className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+        <button disabled={sending || !content.trim()} className="self-end rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">{sending ? 'Sending...' : 'Send'}</button>
+      </form>
+    </section>
   );
 }
