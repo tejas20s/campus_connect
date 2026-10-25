@@ -66,6 +66,7 @@ export default function RecruiterApplicantsPage() {
     try {
       await api.patch(`/applications/${application.id}/status`, {
         status,
+        feedback: schedule.feedback || undefined,
         ...(status === 'INTERVIEW_SCHEDULED' && {
           ...schedule,
           scheduledAt: new Date(schedule.scheduledAt).toISOString()
@@ -155,7 +156,12 @@ export default function RecruiterApplicantsPage() {
                   )}
 
                   {actions.length > 0 && (
-                    <div className="mt-5 flex flex-wrap gap-2">
+                    <div className="mt-5 space-y-3">
+                      <label className="block text-sm text-slate-300">
+                        Feedback for the student (optional)
+                        <textarea rows={2} maxLength={2000} value={interviewForm.feedback || ''} onChange={(event) => updateInterviewForm(application.id, 'feedback', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-brand-500" />
+                      </label>
+                      <div className="flex flex-wrap gap-2">
                       {actions.map((status) => (
                         <button
                           key={status}
@@ -167,6 +173,7 @@ export default function RecruiterApplicantsPage() {
                           {updatingId === application.id ? 'Updating...' : status === 'INTERVIEW_SCHEDULED' ? 'Schedule interview' : status.replaceAll('_', ' ')}
                         </button>
                       ))}
+                      </div>
                     </div>
                   )}
                 </article>

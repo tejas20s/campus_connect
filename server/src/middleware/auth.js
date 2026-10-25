@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../db/prisma.js';
 import { env } from '../config/env.js';
@@ -26,6 +27,15 @@ export async function requireAuth(req, res, next) {
   }
 
   try {
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const revokedToken = await prisma.revokedToken.findUnique({ where: { tokenHash } });
+    if (revokedToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'This session has been logged out.'
+      });
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
       select: {
@@ -47,6 +57,7 @@ export async function requireAuth(req, res, next) {
     }
 
     req.user = user;
+    req.authToken = { token, payload };
     return next();
   } catch (error) {
     return next(error);

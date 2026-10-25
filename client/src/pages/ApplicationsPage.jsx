@@ -78,12 +78,35 @@ export default function ApplicationsPage() {
                 </div>
                 {application.interview && (
                   <div className="mt-5 rounded-xl border border-indigo-400/20 bg-indigo-500/10 p-4 text-sm">
-                    <p className="font-semibold text-indigo-100">Interview scheduled</p>
+                    <p className="font-semibold text-indigo-100">Interview {application.interview.status?.toLowerCase() || 'scheduled'}</p>
                     <p className="mt-1 text-indigo-100/80">{new Date(application.interview.scheduledAt).toLocaleString()}</p>
+                    {application.interview.mode && <p className="mt-1 text-indigo-100/80">Format: {application.interview.mode}</p>}
                     {application.interview.venue && <p className="mt-1 text-indigo-100/80">{application.interview.venue}</p>}
                     {application.interview.instructions && <p className="mt-2 text-indigo-100/80">{application.interview.instructions}</p>}
                   </div>
                 )}
+                <section className="mt-5 border-t border-slate-800 pt-4">
+                  <h3 className="text-sm font-semibold text-slate-200">Application timeline</h3>
+                  <ol className="mt-3 space-y-3">
+                    {(application.statusHistory?.length ? application.statusHistory : [{
+                      id: `current-${application.id}`,
+                      status: application.status,
+                      createdAt: application.updatedAt || application.appliedAt
+                    }]).map((event) => (
+                      <li key={event.id} className="flex gap-3 text-sm">
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-400" />
+                        <div>
+                          <p className="font-medium text-slate-200">{event.status.replaceAll('_', ' ')}</p>
+                          <p className="text-xs text-slate-500">{new Date(event.createdAt).toLocaleString()}</p>
+                          {event.feedback && <p className="mt-1 whitespace-pre-wrap text-slate-300">Recruiter feedback: {event.feedback}</p>}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  {!application.statusHistory?.length && (
+                    <p className="mt-3 text-xs text-slate-500">Earlier status transitions were not recorded before timeline tracking was enabled.</p>
+                  )}
+                </section>
                 {!['SELECTED', 'REJECTED', 'WITHDRAWN'].includes(application.status) && (
                   <button
                     type="button"

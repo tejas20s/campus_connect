@@ -26,6 +26,7 @@ const upload = multer({
   }
 });
 
+const safeUrl = z.string().url().max(500).refine((value) => /^https?:\/\//i.test(value));
 const profileInput = z.object({
   fullName: z.string().trim().min(2).max(120).optional(),
   branch: z.string().trim().max(100).nullable().optional(),
@@ -33,7 +34,19 @@ const profileInput = z.object({
   cgpa: z.number().min(0).max(10).nullable().optional(),
   phone: z.string().trim().max(40).nullable().optional(),
   skills: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
-  portfolioLinks: z.record(z.string().url()).nullable().optional()
+  portfolioLinks: z.record(safeUrl).nullable().optional(),
+  certifications: z.array(z.object({
+    name: z.string().trim().min(2).max(160),
+    issuer: z.string().trim().max(160).optional(),
+    issuedAt: z.string().trim().max(40).optional(),
+    url: safeUrl.optional().or(z.literal(''))
+  }).strict()).max(30).optional(),
+  projects: z.array(z.object({
+    name: z.string().trim().min(2).max(160),
+    description: z.string().trim().max(2000).optional(),
+    technologies: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
+    url: safeUrl.optional().or(z.literal(''))
+  }).strict()).max(30).optional()
 });
 
 function uploadSingleFile(req, res, next) {
@@ -88,6 +101,8 @@ function getStudentSummary(profile, includeContact) {
     phone: includeContact ? profile.phone : undefined,
     skills: profile.skills,
     portfolioLinks: profile.portfolioLinks,
+    certifications: profile.certifications || [],
+    projects: profile.projects || [],
     hasResume: Boolean(profile.resumeUrl),
     hasProfileImage: Boolean(profile.profileImageUrl)
   };
@@ -126,6 +141,12 @@ function getStudentSummary(profile, includeContact) {
  *                 items: { type: string }
  *               portfolioLinks:
  *                 type: object
+ *               certifications:
+ *                 type: array
+ *                 items: { type: object }
+ *               projects:
+ *                 type: array
+ *                 items: { type: object }
  *     responses:
  *       200:
  *         description: Updated profile.

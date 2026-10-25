@@ -24,6 +24,11 @@ function toDateTimeInput(value) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
+function dateFilterValue(value, endOfDay = false) {
+  if (!value) return undefined;
+  return new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00'}`).toISOString();
+}
+
 export default function PlacementAnalyticsPage() {
   const [filters, setFilters] = useState({ from: '', to: '', graduationYear: '', department: '' });
   const [metrics, setMetrics] = useState(emptyMetrics);
@@ -43,15 +48,15 @@ export default function PlacementAnalyticsPage() {
 
   const loadData = useCallback(async () => {
     const params = {
-      from: filters.from ? new Date(filters.from).toISOString() : undefined,
-      to: filters.to ? new Date(filters.to).toISOString() : undefined,
+      from: dateFilterValue(filters.from),
+      to: dateFilterValue(filters.to, true),
       graduationYear: filters.graduationYear || undefined,
       department: filters.department || undefined
     };
     const [overviewResponse, placementsResponse, announcementsResponse, drivesResponse, companiesResponse] = await Promise.all([
       api.get('/analytics/overview', { params }),
       api.get('/analytics/placements', { params }),
-      api.get('/announcements'),
+      api.get('/announcements/manage'),
       api.get('/placement-drives/manage'),
       api.get('/companies')
     ]);
@@ -93,15 +98,14 @@ export default function PlacementAnalyticsPage() {
     }
   }
 
-  async function updateAnnouncement(id, archive) {
+  async function updateAnnouncement(id, isPublished) {
     setSaving(true);
     setError('');
     setMessage('');
     try {
-      if (archive) await api.delete(`/announcements/${id}`);
-      else await api.patch(`/announcements/${id}`, { isPublished: false });
+      await api.patch(`/announcements/${id}`, { isPublished });
       await loadData();
-      setMessage(archive ? 'Announcement archived.' : 'Announcement unpublished.');
+      setMessage(isPublished ? 'Announcement republished.' : 'Announcement unpublished.');
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to update announcement.');
     } finally {
@@ -188,8 +192,8 @@ export default function PlacementAnalyticsPage() {
     setError('');
     try {
       const params = {
-        from: filters.from ? new Date(filters.from).toISOString() : undefined,
-        to: filters.to ? new Date(filters.to).toISOString() : undefined,
+        from: dateFilterValue(filters.from),
+        to: dateFilterValue(filters.to, true),
         graduationYear: filters.graduationYear || undefined,
         department: filters.department || undefined
       };
@@ -299,7 +303,7 @@ export default function PlacementAnalyticsPage() {
                   ) : (
                     <div className="flex items-start justify-between gap-3">
                       <div><p className="text-xs text-brand-300">{item.type}</p><h3 className="mt-1 font-semibold">{item.title}</h3><p className="mt-2 text-sm text-slate-300">{item.message}</p></div>
-                      <div className="flex shrink-0 gap-3"><button type="button" onClick={() => startEditingAnnouncement(item)} className="text-xs text-brand-300 hover:text-brand-200">Edit</button><button type="button" disabled={saving} onClick={() => updateAnnouncement(item.id, true)} className="text-xs text-red-200 hover:text-red-100 disabled:opacity-50">Archive</button></div>
+                      <div className="flex shrink-0 gap-3"><button type="button" onClick={() => startEditingAnnouncement(item)} className="text-xs text-brand-300 hover:text-brand-200">Edit</button><button type="button" disabled={saving} onClick={() => updateAnnouncement(item.id, !item.isPublished)} className={`text-xs disabled:opacity-50 ${item.isPublished ? 'text-amber-200 hover:text-amber-100' : 'text-emerald-200 hover:text-emerald-100'}`}>{item.isPublished ? 'Unpublish' : 'Republish'}</button></div>
                     </div>
                   )}
                 </article>

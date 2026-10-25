@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
+  userFindMany: vi.fn(),
   userCount: vi.fn(),
   studentCount: vi.fn(),
   alumniCount: vi.fn(),
@@ -22,12 +23,15 @@ const mocks = vi.hoisted(() => ({
   companyFindMany: vi.fn(),
   notificationFindMany: vi.fn(),
   notificationFindFirst: vi.fn(),
-  notificationUpdate: vi.fn()
+  notificationUpdate: vi.fn(),
+  notificationCreateMany: vi.fn(),
+  transaction: vi.fn()
 }));
 
 vi.mock('../src/db/prisma.js', () => ({
   prisma: {
-    user: { findUnique: mocks.userFindUnique, count: mocks.userCount },
+    revokedToken: { findUnique: vi.fn() },
+    user: { findUnique: mocks.userFindUnique, findMany: mocks.userFindMany, count: mocks.userCount },
     studentProfile: { count: mocks.studentCount },
     alumniProfile: { count: mocks.alumniCount },
     job: { count: mocks.jobCount },
@@ -48,8 +52,10 @@ vi.mock('../src/db/prisma.js', () => ({
     notification: {
       findMany: mocks.notificationFindMany,
       findFirst: mocks.notificationFindFirst,
-      update: mocks.notificationUpdate
-    }
+      update: mocks.notificationUpdate,
+      createMany: mocks.notificationCreateMany
+    },
+    $transaction: mocks.transaction
   }
 }));
 
@@ -70,6 +76,12 @@ function tokenFor(id) {
 describe('placement analytics and publishing routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.transaction.mockImplementation((callback) => callback({
+      user: { findMany: mocks.userFindMany },
+      announcement: { create: mocks.announcementCreate, update: mocks.announcementUpdate },
+      placementDrive: { create: mocks.driveCreate, update: mocks.driveUpdate },
+      notification: { createMany: mocks.notificationCreateMany }
+    }));
   });
 
   it('restricts analytics to placement officers', async () => {
@@ -148,6 +160,7 @@ describe('placement analytics and publishing routes', () => {
       alumniProfile: null,
       recruiterProfile: null
     });
+
     mocks.driveFindMany.mockResolvedValue([]);
 
     const response = await request(app)
@@ -158,6 +171,62 @@ describe('placement analytics and publishing routes', () => {
     expect(mocks.driveFindMany).toHaveBeenCalledWith(expect.objectContaining({
       orderBy: { date: 'asc' },
       take: 100
+    }));
+  });
+
+  it('lists unpublished announcements for Placement Officer management', async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'officer-1',
+      role: 'PLACEMENT_OFFICER',
+      studentProfile: null,
+      alumniProfile: null,
+      recruiterProfile: null
+    });
+    mocks.announcementFindMany.mockResolvedValue([{ id: 'announcement-1', isPublished: false }]);
+
+    const response = await request(app)
+      .get('/announcements/manage')
+      .set('Authorization', `Bearer ${tokenFor('officer-1')}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data[0].isPublished).toBe(false);
+    expect(mocks.announcementFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 100,
+      orderBy: { createdAt: 'desc' }
+    }));
+  });
+
+  it('attributes each placed student to their earliest selected company deterministically', async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'officer-1',
+      role: 'PLACEMENT_OFFICER',
+      studentProfile: null,
+      alumniProfile: null,
+      recruiterProfile: null
+    });
+    mocks.applicationFindMany.mockResolvedValue([
+      {
+        id: 'application-first',
+        studentId: 'student-1',
+        student: { branch: 'Computer Science', graduationYear: 2027 },
+        job: { company: { name: 'First Company' } }
+      },
+      {
+        id: 'application-second',
+        studentId: 'student-1',
+        student: { branch: 'Computer Science', graduationYear: 2027 },
+        job: { company: { name: 'Second Company' } }
+      }
+    ]);
+
+    const response = await request(app)
+      .get('/analytics/placements')
+      .set('Authorization', `Bearer ${tokenFor('officer-1')}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.byCompany).toEqual([{ name: 'First Company', placements: 1 }]);
+    expect(mocks.applicationFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      orderBy: [{ appliedAt: 'asc' }, { id: 'asc' }]
     }));
   });
 
@@ -199,5 +268,34 @@ describe('placement analytics and publishing routes', () => {
 
     expect(response.status).toBe(400);
     expect(mocks.announcementCreate).not.toHaveBeenCalled();
+  });
+
+  it('notifies students when a placement officer publishes an announcement', async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'officer-1',
+      role: 'PLACEMENT_OFFICER',
+      studentProfile: null,
+      alumniProfile: null,
+      recruiterProfile: null
+    });
+    mocks.announcementCreate.mockResolvedValue({
+      id: 'announcement-1',
+      title: 'Placement orientation',
+      isPublished: true
+    });
+    mocks.userFindMany.mockResolvedValue([{ id: 'student-1' }, { id: 'student-2' }]);
+
+    const response = await request(app)
+      .post('/announcements')
+      .set('Authorization', `Bearer ${tokenFor('officer-1')}`)
+      .send({ title: 'Placement orientation', message: 'Join the placement orientation this week.' });
+
+    expect(response.status).toBe(201);
+    expect(mocks.notificationCreateMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ userId: 'student-1', title: 'New placement announcement' }),
+        expect.objectContaining({ userId: 'student-2', link: '/dashboard' })
+      ])
+    });
   });
 });

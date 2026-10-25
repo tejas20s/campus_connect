@@ -19,7 +19,8 @@ function formatDate(value) {
 }
 
 export default function JobsPage() {
-  const [filters, setFilters] = useState({ q: '', location: '', type: '' });
+  const [filters, setFilters] = useState({ q: '', location: '', type: '', page: 1 });
+  const [matchFilter, setMatchFilter] = useState({ eligibility: 'all', minimumSkillMatch: 0 });
   const [jobs, setJobs] = useState([]);
   const [studentProfile, setStudentProfile] = useState(null);
   const [profileLoadError, setProfileLoadError] = useState(false);
@@ -58,6 +59,9 @@ export default function JobsPage() {
         q: filters.q || undefined,
         location: filters.location || undefined,
         type: filters.type || undefined,
+        page: filters.page,
+        eligibleOnly: studentProfile && matchFilter.eligibility === 'eligible' ? 'true' : undefined,
+        minimumSkillMatch: studentProfile && matchFilter.minimumSkillMatch > 0 ? matchFilter.minimumSkillMatch : undefined,
         pageSize: 30
       }
     })
@@ -76,11 +80,18 @@ export default function JobsPage() {
     return () => {
       active = false;
     };
-  }, [filters]);
+  }, [filters, studentProfile, matchFilter]);
 
   function updateFilter(key, value) {
-    setFilters((current) => ({ ...current, [key]: value }));
+    setFilters((current) => ({ ...current, [key]: value, ...(key === 'page' ? {} : { page: 1 }) }));
   }
+
+  function updateMatchFilter(key, value) {
+    setMatchFilter((current) => ({ ...current, [key]: value }));
+    setFilters((current) => ({ ...current, page: 1 }));
+  }
+
+  const visibleJobs = jobs;
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-50 sm:px-6">
@@ -129,6 +140,21 @@ export default function JobsPage() {
               {Object.entries(jobTypes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
+          {studentProfile && (
+            <>
+              <label className="text-sm text-slate-300">
+                Eligibility
+                <select value={matchFilter.eligibility} onChange={(event) => updateMatchFilter('eligibility', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white">
+                  <option value="all">All jobs</option>
+                  <option value="eligible">Eligible only</option>
+                </select>
+              </label>
+              <label className="text-sm text-slate-300">
+                Minimum skill match: {matchFilter.minimumSkillMatch}%
+                <input aria-label="Minimum skill match" type="range" min="0" max="100" step="10" value={matchFilter.minimumSkillMatch} onChange={(event) => updateMatchFilter('minimumSkillMatch', Number(event.target.value))} className="mt-3 w-full accent-blue-500" />
+              </label>
+            </>
+          )}
         </section>
 
         {error && <p role="alert" className="mb-5 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-red-200">{error}</p>}
@@ -144,20 +170,37 @@ export default function JobsPage() {
         )}
         {loading ? (
           <p role="status" className="rounded-xl border border-slate-800 bg-slate-900 p-6 text-slate-300">Loading opportunities...</p>
-        ) : jobs.length ? (
+        ) : visibleJobs.length ? (
           <>
-            <p className="mb-4 text-sm text-slate-400">{pagination?.total ?? jobs.length} opportunities</p>
+            <p className="mb-4 text-sm text-slate-400">
+              Showing {visibleJobs.length} of {pagination?.total ?? jobs.length} opportunities on this page
+              {studentProfile && matchFilter.eligibility === 'eligible' ? ' · eligible only' : ''}
+            </p>
             <div className="grid gap-4 md:grid-cols-2">
-              {jobs.map((job) => (
+              {visibleJobs.map((job) => (
                 <JobCard key={job.id} job={job} studentProfile={studentProfile} />
               ))}
             </div>
+            {pagination?.totalPages > 1 && (
+              <nav aria-label="Job listing pages" className="mt-6 flex items-center justify-between">
+                <button type="button" disabled={pagination.page <= 1} onClick={() => updateFilter('page', pagination.page - 1)} className="rounded-lg border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">Previous</button>
+                <span className="text-sm text-slate-400">Page {pagination.page} of {pagination.totalPages}</span>
+                <button type="button" disabled={pagination.page >= pagination.totalPages} onClick={() => updateFilter('page', pagination.page + 1)} className="rounded-lg border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">Next</button>
+              </nav>
+            )}
           </>
         ) : (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-12 text-center">
-            <h2 className="text-lg font-semibold">No matching opportunities</h2>
-            <p className="mt-2 text-sm text-slate-400">Try changing your search or filters.</p>
+            <h2 className="text-lg font-semibold">{jobs.length ? 'No jobs match your eligibility filters' : 'No matching opportunities'}</h2>
+            <p className="mt-2 text-sm text-slate-400">Try changing your search or eligibility filters.</p>
           </div>
+        )}
+        {!loading && pagination?.totalPages > 1 && !visibleJobs.length && (
+          <nav aria-label="Job listing pages" className="mt-6 flex items-center justify-between">
+            <button type="button" disabled={pagination.page <= 1} onClick={() => updateFilter('page', pagination.page - 1)} className="rounded-lg border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">Previous</button>
+            <span className="text-sm text-slate-400">Page {pagination.page} of {pagination.totalPages}</span>
+            <button type="button" disabled={pagination.page >= pagination.totalPages} onClick={() => updateFilter('page', pagination.page + 1)} className="rounded-lg border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">Next</button>
+          </nav>
         )}
       </div>
     </main>

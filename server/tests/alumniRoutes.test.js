@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
+  queryRaw: vi.fn().mockResolvedValue([]),
   alumniFindMany: vi.fn(),
   alumniFindFirst: vi.fn(),
   alumniFindUnique: vi.fn(),
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../src/db/prisma.js', () => ({
   prisma: {
+    revokedToken: { findUnique: vi.fn() },
     user: { findUnique: mocks.userFindUnique },
     alumniProfile: {
       findMany: mocks.alumniFindMany,
@@ -35,7 +37,8 @@ vi.mock('../src/db/prisma.js', () => ({
       updateMany: mocks.mentorshipUpdateMany
     },
     notification: { create: mocks.notificationCreate },
-    $transaction: mocks.transaction
+    $transaction: mocks.transaction,
+    $queryRaw: mocks.queryRaw
   }
 }));
 
@@ -82,6 +85,7 @@ describe('alumni and mentorship routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.pagination).toEqual({ page: 2, pageSize: 5, total: 1, totalPages: 1 });
+    expect(mocks.queryRaw.mock.calls[0][1]).toBe('alex');
     expect(mocks.alumniFindMany.mock.calls[0][0].where.isPublic).toBe(true);
     expect(mocks.alumniFindMany.mock.calls[0][0].select).not.toHaveProperty('user');
     expect(mocks.alumniFindMany.mock.calls[0][0].select).not.toHaveProperty('email');

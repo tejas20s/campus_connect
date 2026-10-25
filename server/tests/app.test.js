@@ -9,10 +9,16 @@ vi.mock('../src/db/prisma.js', () => ({
       create: vi.fn(),
       update: vi.fn()
     },
+    revokedToken: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+      deleteMany: vi.fn()
+    },
     company: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
-      create: vi.fn()
+      create: vi.fn(),
+      update: vi.fn()
     },
     studentProfile: {
       findMany: vi.fn(),
@@ -33,6 +39,7 @@ vi.mock('../src/db/prisma.js', () => ({
       create: vi.fn(),
       update: vi.fn()
     },
+    applicationStatusEvent: { create: vi.fn() },
     interview: { upsert: vi.fn() },
     notification: { create: vi.fn() },
     auditLog: { create: vi.fn() },
@@ -59,6 +66,39 @@ describe('CampusConnect auth API', () => {
     expect(response.body.service).toBe('CampusConnect API');
   });
 
+  it('revokes the signed-in token on logout', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'student-1',
+      email: 'student@example.com',
+      role: 'STUDENT',
+      isApproved: true,
+      studentProfile: null,
+      recruiterProfile: null,
+      alumniProfile: null
+    });
+    prisma.revokedToken.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ tokenHash: 'revoked-hash' });
+    prisma.revokedToken.upsert.mockResolvedValue({});
+    prisma.revokedToken.deleteMany.mockResolvedValue({ count: 0 });
+    const token = jwt.sign({ sub: 'student-1' }, env.jwtSecret, { expiresIn: '1h' });
+
+    const logout = await request(app)
+      .post('/api/v1/auth/logout')
+      .set('Authorization', `Bearer ${token}`);
+    const afterLogout = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(logout.status).toBe(200);
+    expect(prisma.revokedToken.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { tokenHash: expect.any(String) },
+      create: expect.objectContaining({ expiresAt: expect.any(Date) })
+    }));
+    expect(prisma.revokedToken.upsert.mock.calls[0][0].where.tokenHash).not.toBe(token);
+    expect(afterLogout.status).toBe(401);
+  });
+
   it('publishes the documented API endpoints', async () => {
     const response = await request(app).get('/api-docs.json');
 
@@ -72,6 +112,12 @@ describe('CampusConnect auth API', () => {
     expect(response.body.paths['/alumni/dashboard']).toBeDefined();
     expect(response.body.paths['/career-resources']).toBeDefined();
     expect(response.body.paths['/mentorship-requests/{requestId}/messages']).toBeDefined();
+    expect(response.body.paths['/applications/my']).toBeDefined();
+    expect(response.body.paths['/applications/{applicationId}/status']).toBeDefined();
+    expect(response.body.paths['/companies/mine']).toBeDefined();
+    expect(response.body.paths['/announcements/manage']).toBeDefined();
+    expect(response.body.paths['/jobs'].get.parameters.some((parameter) => parameter.name === 'eligibleOnly')).toBe(true);
+    expect(response.body.paths['/auth/logout']).toBeDefined();
   });
 
   it('allows Placement Officers to search students without exposing private fields', async () => {
@@ -234,6 +280,62 @@ describe('CampusConnect auth API', () => {
     expect(response.body.data).toHaveLength(1);
     expect(response.body.pagination.totalPages).toBe(1);
     expect(prisma.job.findMany.mock.calls[0][0].where.isPublished).toBe(true);
+  });
+
+  it('filters eligible jobs across the full matching result set for students', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'student-1',
+      email: 'student@example.com',
+      role: 'STUDENT',
+      studentProfile: {
+        id: 'student-profile-1',
+        branch: 'Computer Science',
+        graduationYear: 2027,
+        cgpa: 8.1,
+        skills: ['React']
+      },
+      recruiterProfile: null,
+      alumniProfile: null
+    });
+    prisma.job.findMany.mockResolvedValue([
+      { id: 'eligible', eligibility: { branches: ['Computer Science'], graduationYears: [2027], minCgpa: 8, skills: ['React'] } },
+      { id: 'ineligible', eligibility: { branches: ['Mechanical'] } }
+    ]);
+    const token = jwt.sign({ sub: 'student-1' }, env.jwtSecret, { expiresIn: '1h' });
+
+    const response = await request(app)
+      .get('/api/v1/jobs?eligibleOnly=true&page=1&pageSize=1')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.map((job) => job.id)).toEqual(['eligible']);
+    expect(response.body.pagination).toMatchObject({ total: 1, page: 1, pageSize: 1 });
+    expect(prisma.job.findMany.mock.calls[0][0]).not.toHaveProperty('skip');
+  });
+
+  it('lets approved recruiters update only their connected company', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'recruiter-1',
+      email: 'recruiter@example.com',
+      role: 'RECRUITER',
+      isApproved: true,
+      studentProfile: null,
+      recruiterProfile: { companyId: 'company-1' },
+      alumniProfile: null
+    });
+    prisma.company.update.mockResolvedValue({ id: 'company-1', name: 'Updated Company' });
+    const token = jwt.sign({ sub: 'recruiter-1' }, env.jwtSecret, { expiresIn: '1h' });
+
+    const response = await request(app)
+      .patch('/api/v1/companies/mine')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Updated Company' });
+
+    expect(response.status).toBe(200);
+    expect(prisma.company.update).toHaveBeenCalledWith({
+      where: { id: 'company-1' },
+      data: { name: 'Updated Company' }
+    });
   });
 
   it('creates recruiter drafts under the recruiter company only', async () => {
@@ -480,6 +582,7 @@ describe('CampusConnect auth API', () => {
     });
     prisma.interview.upsert.mockResolvedValue({});
     prisma.notification.create.mockResolvedValue({});
+    prisma.applicationStatusEvent.create.mockResolvedValue({});
     prisma.$transaction.mockImplementation((callback) => callback(prisma));
 
     const studentToken = jwt.sign({ sub: studentUser.id }, env.jwtSecret, { expiresIn: '1h' });
@@ -499,7 +602,10 @@ describe('CampusConnect auth API', () => {
       .set('Authorization', `Bearer ${studentToken}`);
     expect(trackingResponse.status).toBe(200);
     expect(prisma.application.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { studentId: student.id }
+      where: { studentId: student.id },
+      include: expect.objectContaining({
+        statusHistory: { orderBy: { createdAt: 'asc' } }
+      })
     }));
 
     const interviewDate = new Date(Date.now() + 172800000).toISOString();
@@ -519,6 +625,9 @@ describe('CampusConnect auth API', () => {
       data: expect.objectContaining({ userId: studentUser.id, title: 'Application status updated' })
     }));
     expect(prisma.interview.upsert).toHaveBeenCalled();
+    expect(prisma.applicationStatusEvent.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ applicationId: application.id, status: 'INTERVIEW_SCHEDULED' })
+    }));
   });
 
   it('registers a student account and returns a token', async () => {

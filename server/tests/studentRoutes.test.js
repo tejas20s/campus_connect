@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 
 vi.mock('../src/db/prisma.js', () => ({
   prisma: {
+    revokedToken: { findUnique: vi.fn() },
     user: { findUnique: vi.fn() },
     studentProfile: {
       findUnique: vi.fn(),
@@ -37,6 +38,8 @@ describe('student profile and resume API', () => {
       phone: '555-0100',
       skills: ['JavaScript'],
       portfolioLinks: { portfolio: 'https://example.com' },
+      certifications: [{ name: 'Cloud Basics', issuer: 'Example', issuedAt: '2025', url: '' }],
+      projects: [{ name: 'Portfolio', technologies: ['React'], url: 'https://example.com' }],
       resumeUrl: 'private-resume-id',
       profileImageUrl: null
     };
@@ -79,6 +82,38 @@ describe('student profile and resume API', () => {
     expect(prisma.studentProfile.update).not.toHaveBeenCalled();
   });
 
+  it('accepts validated certification and project profile updates', async () => {
+    const token = tokenFor({
+      id: 'student-1',
+      email: 'student@example.com',
+      role: 'STUDENT',
+      studentProfile: { id: 'student-profile-1' },
+      recruiterProfile: null,
+      alumniProfile: null
+    });
+    prisma.studentProfile.update.mockResolvedValue({
+      id: 'student-profile-1',
+      fullName: 'Student User',
+      skills: [],
+      certifications: [{ name: 'Cloud Basics', issuer: 'Example' }],
+      projects: [{ name: 'Portfolio', technologies: ['React'] }],
+      resumeUrl: null,
+      profileImageUrl: null
+    });
+
+    const response = await request(app)
+      .patch('/api/v1/students/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        certifications: [{ name: 'Cloud Basics', issuer: 'Example' }],
+        projects: [{ name: 'Portfolio', technologies: ['React'] }]
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.certifications).toHaveLength(1);
+    expect(response.body.data.projects).toHaveLength(1);
+    expect(prisma.studentProfile.update.mock.calls[0][0].data.projects[0].name).toBe('Portfolio');
+  });
   it('rejects a file with a PDF extension but non-PDF contents', async () => {
     const token = tokenFor({
       id: 'student-1',

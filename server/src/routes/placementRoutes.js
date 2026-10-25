@@ -64,6 +64,22 @@ function csvCell(value) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
+async function notifyStudents(transaction, { title, message }) {
+  const students = await transaction.user.findMany({
+    where: { role: 'STUDENT', isApproved: true },
+    select: { id: true }
+  });
+  if (!students.length) return;
+  await transaction.notification.createMany({
+    data: students.map(({ id }) => ({
+      userId: id,
+      title,
+      message,
+      link: '/dashboard'
+    }))
+  });
+}
+
 /**
  * @openapi
  * /analytics/overview:
@@ -170,7 +186,7 @@ router.get('/analytics/placements', ...officersOnly, async (req, res, next) => {
     if (!filters) return;
     const selected = await prisma.application.findMany({
       where: { ...applicationWhere(filters), status: 'SELECTED' },
-      distinct: ['studentId'],
+      orderBy: [{ appliedAt: 'asc' }, { id: 'asc' }],
       select: {
         studentId: true,
         student: { select: { branch: true, graduationYear: true } },
@@ -181,7 +197,10 @@ router.get('/analytics/placements', ...officersOnly, async (req, res, next) => {
     const byDepartment = new Map();
     const byGraduationYear = new Map();
     const byCompany = new Map();
+    const countedStudents = new Set();
     for (const application of selected) {
+      if (countedStudents.has(application.studentId)) continue;
+      countedStudents.add(application.studentId);
       const department = application.student.branch || 'Not specified';
       const year = application.student.graduationYear ?? 'Not specified';
       const company = application.job.company.name;
@@ -286,18 +305,54 @@ router.get('/announcements', async (req, res, next) => {
   }
 });
 
+/**
+ * @openapi
+ * /announcements/manage:
+ *   get:
+ *     summary: List published and unpublished announcements for management
+ *     tags: [Placement]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Announcements available to Placement Officers.
+ *       403:
+ *         description: Placement Officer role required.
+ */
+router.get('/announcements/manage', ...officersOnly, async (req, res, next) => {
+  try {
+    const announcements = await prisma.announcement.findMany({
+      select: { id: true, title: true, message: true, type: true, isPublished: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    return res.json({ success: true, data: announcements });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.post('/announcements', ...officersOnly, async (req, res, next) => {
   try {
     const parsed = announcementInput.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ success: false, message: 'Invalid announcement.', issues: parsed.error.issues });
     }
-    const announcement = await prisma.announcement.create({
-      data: {
-        ...parsed.data,
-        isPublished: parsed.data.isPublished ?? true,
-        authorId: req.user.id
+    const announcement = await prisma.$transaction(async (transaction) => {
+      const created = await transaction.announcement.create({
+        data: {
+          ...parsed.data,
+          isPublished: parsed.data.isPublished ?? true,
+          authorId: req.user.id
+        }
+      });
+      if (created.isPublished) {
+        await notifyStudents(transaction, {
+          title: 'New placement announcement',
+          message: created.title
+        });
       }
+      return created;
     });
     return res.status(201).json({ success: true, data: announcement });
   } catch (error) {
@@ -313,9 +368,18 @@ router.patch('/announcements/:announcementId', ...officersOnly, async (req, res,
     }
     const existing = await prisma.announcement.findUnique({ where: { id: req.params.announcementId } });
     if (!existing) return res.status(404).json({ success: false, message: 'Announcement was not found.' });
-    const announcement = await prisma.announcement.update({
-      where: { id: existing.id },
-      data: parsed.data
+    const announcement = await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.announcement.update({
+        where: { id: existing.id },
+        data: parsed.data
+      });
+      if (existing.isPublished === false && updated.isPublished) {
+        await notifyStudents(transaction, {
+          title: 'New placement announcement',
+          message: updated.title
+        });
+      }
+      return updated;
     });
     return res.json({ success: true, data: announcement });
   } catch (error) {
@@ -406,12 +470,21 @@ router.post('/placement-drives', ...officersOnly, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'The placement drive must be scheduled in the future.' });
     }
     const { date, isPublished, ...driveData } = parsed.data;
-    const drive = await prisma.placementDrive.create({
-      data: {
-        ...driveData,
-        date: new Date(date),
-        isPublished: isPublished ?? true
+    const drive = await prisma.$transaction(async (transaction) => {
+      const created = await transaction.placementDrive.create({
+        data: {
+          ...driveData,
+          date: new Date(date),
+          isPublished: isPublished ?? true
+        }
+      });
+      if (created.isPublished) {
+        await notifyStudents(transaction, {
+          title: 'New placement drive',
+          message: `${created.title} is scheduled for ${new Date(created.date).toLocaleString()}.`
+        });
       }
+      return created;
     });
     return res.status(201).json({ success: true, data: drive });
   } catch (error) {
@@ -431,9 +504,18 @@ router.patch('/placement-drives/:driveId', ...officersOnly, async (req, res, nex
     const existing = await prisma.placementDrive.findUnique({ where: { id: req.params.driveId } });
     if (!existing) return res.status(404).json({ success: false, message: 'Placement drive was not found.' });
     const { date, ...driveData } = parsed.data;
-    const drive = await prisma.placementDrive.update({
-      where: { id: existing.id },
-      data: { ...driveData, ...(date && { date: new Date(date) }) }
+    const drive = await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.placementDrive.update({
+        where: { id: existing.id },
+        data: { ...driveData, ...(date && { date: new Date(date) }) }
+      });
+      if (existing.isPublished === false && updated.isPublished) {
+        await notifyStudents(transaction, {
+          title: 'New placement drive',
+          message: `${updated.title} is scheduled for ${new Date(updated.date).toLocaleString()}.`
+        });
+      }
+      return updated;
     });
     return res.json({ success: true, data: drive });
   } catch (error) {

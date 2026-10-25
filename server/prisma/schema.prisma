@@ -66,6 +66,15 @@ model User {
   reviewedAlumniResources     CareerResource[]            @relation("ResourceReviewer")
   reviewedAlumniOpportunities OpportunityRecommendation[] @relation("OpportunityReviewer")
   mentorshipMessages          MentorshipMessage[]
+  applicationStatusEvents     ApplicationStatusEvent[]    @relation("ApplicationStatusActor")
+}
+
+model RevokedToken {
+  tokenHash String   @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }
 
 model StudentProfile {
@@ -78,6 +87,8 @@ model StudentProfile {
   cgpa               Float?
   phone              String?
   portfolioLinks     Json?
+  certifications     Json?
+  projects           Json?
   resumeUrl          String?
   profileImageUrl    String?
   skills             String[]            @default([])
@@ -171,8 +182,22 @@ model Application {
   appliedAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   interview   Interview?
+  statusHistory ApplicationStatusEvent[]
 
   @@unique([jobId, studentId])
+}
+
+model ApplicationStatusEvent {
+  id            String            @id @default(cuid())
+  applicationId String
+  status        ApplicationStatus
+  feedback      String?           @db.VarChar(2000)
+  actorId       String?
+  createdAt     DateTime          @default(now())
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  actor         User?             @relation("ApplicationStatusActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([applicationId, createdAt])
 }
 
 model Interview {

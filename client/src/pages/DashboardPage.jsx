@@ -1,4 +1,6 @@
 import { Link, Navigate } from 'react-router-dom';
+import StudentDashboard from './StudentDashboard';
+import LogoutButton from '../components/LogoutButton';
 
 const getStoredUser = () => {
   try {
@@ -33,6 +35,9 @@ export default function DashboardPage() {
   if (user.role === 'ALUMNI') {
     return <Navigate to="/alumni/dashboard" replace />;
   }
+  if (user.role === 'STUDENT') {
+    return <StudentDashboard user={user} />;
+  }
 
   const actions = {
     STUDENT: [
@@ -57,12 +62,15 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-[#f7f9fc] px-4 py-6 text-slate-900 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <header className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <Link to="/" className="flex items-center gap-3 text-lg font-bold tracking-tight text-slate-950">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-xl text-white">C</span>
             <span>Campus<span className="text-blue-600">Connect</span></span>
           </Link>
-          <Link to="/notifications" className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700">Notifications</Link>
+          <div className="flex items-center gap-2">
+            <Link to="/notifications" className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700">Notifications</Link>
+            <LogoutButton className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50" />
+          </div>
         </header>
 
         <section className="relative mt-7 overflow-hidden rounded-3xl bg-[#101b36] px-6 py-8 text-white shadow-xl shadow-slate-900/10 sm:px-9 sm:py-10">

@@ -1,27 +1,21 @@
 # CampusConnect
 
-CampusConnect is a college placement and alumni portal built with React, Express, PostgreSQL, and Prisma.
+CampusConnect is a college placement and alumni portal built with React, Vite, Express, PostgreSQL, and Prisma.
 
-## Implemented
+## Features
 
-- Responsive landing page, sign-in, registration, jobs, opportunity details, application tracking, and dashboard views.
-- Recruiter company setup, job-draft creation, publishing, archiving, applicant review, and interview scheduling screens; placement-office recruiter approval screen.
-- JWT-based API authentication and bcrypt password hashing.
-- Public registration for students and alumni; recruiter accounts require placement-office approval. Placement Officer accounts cannot be created through public registration.
-- Role-protected, validated job and application APIs.
-- Searchable, filterable, paginated public job listings.
-- Student-specific branch, graduation year, CGPA, and skill matching on job listings and details, with missing-requirement explanations and skill recommendations; API-side eligibility checks and database-backed duplicate-application prevention remain authoritative.
-- Application status updates, interview scheduling data, and in-app application status notifications.
-- Student profile editing, private JPEG/PNG profile-image and PDF resume uploads with MIME/signature/size checks, and short-lived private Cloudinary URLs.
-- Public alumni directory with search/filter/pagination, profile privacy control, and student-to-alumni mentorship requests with accepted/declined transitions.
-- Alumni-specific dashboard with mentoring topics and experience, verified profile badges, private accepted-mentorship guidance threads, moderated career resources and opportunity recommendations, and volunteer requests for placement drives.
-- Placement Officer queue for alumni verification, resource/opportunity review, and event-volunteer decisions; only approved alumni submissions are visible in the student career resource feed.
-- Placement Officer analytics, filters, Recharts visualizations, selected-placement CSV export, announcements, placement drives, and recruiter approval.
-- Placement Officer student registry with search, academic filters, pagination, and privacy-safe application totals.
-- Per-user notifications and read status; optional Resend messages for registration, applications, and status/interview updates using a branded, escaped email template.
-- API and authentication rate limits, production secret checks, and transactional recruiter-approval audit records.
-- Prisma schema for users, student/recruiter/alumni profiles, companies, jobs, applications, interviews, drives, announcements, mentorship requests, notifications, and audit logs.
-- Swagger UI at `/api-docs` and OpenAPI JSON at `/api-docs.json`.
+- Responsive React application for students, recruiters, alumni, and Placement Officers.
+- Student registration, dashboard, profile and academic editing, skills, certifications, projects, portfolio links, private PDF resume uploads, and profile images.
+- Job search, filters, pagination, and transparent eligibility/skill matching based on branch, graduation year, CGPA, and skills. Eligible-only and minimum-skill-match filters run against the complete matching result set.
+- Job applications with duplicate prevention, application history, recruiter feedback, interviews, and in-app notifications.
+- Recruiter company setup/editing, job creation/editing with eligibility requirements, publishing, archiving, applicant review, status updates, interview scheduling, and scoped resume access.
+- Placement Officer recruiter approvals, student registry, database-backed placement analytics, department/year/company breakdowns, CSV export, placement drives, and announcements.
+- Alumni directory and profiles, searchable skills/company/role, mentorship requests and decisions, accepted mentorship conversations, reviewed career resources and opportunity recommendations, and event volunteering.
+- User-scoped notification center with read/unread state. Optional Resend email notifications use a branded HTML layout.
+- Authenticated Cloudinary-backed private resume and image storage with file type, signature, and size checks.
+- Role and ownership checks, request validation, rate limiting, hashed JWT logout revocation, Prisma persistence, Swagger UI at `/api-docs`, and OpenAPI JSON at `/api-docs.json`.
+
+Integrations require valid credentials and a reachable database; code presence alone does not verify live delivery or storage.
 
 ## Requirements
 
@@ -38,31 +32,24 @@ npm install
 Copy-Item .env.example .env
 ```
 
-Edit `.env` and set `DATABASE_URL` to your local PostgreSQL database. For a standard local PostgreSQL installation, it has this format:
-
-```text
-postgresql://postgres:YOUR_PASSWORD@localhost:5432/campusconnect?schema=public
-```
-
-Create a PostgreSQL database named `campusconnect` (for example, in pgAdmin), then run:
+Set `DATABASE_URL` in `.env` to a PostgreSQL database you control, create the database, then run:
 
 ```powershell
-npm run db:migrate
+npm run db:deploy
 npm run db:generate
 npm run db:seed
 npm run dev
 ```
 
-For an existing database after pulling updates, apply new migrations before restarting the API:
+For a standard local PostgreSQL installation, the URL has this format:
 
-```powershell
-npm run db:deploy
-npm run db:generate
+```text
+postgresql://USERNAME:PASSWORD@localhost:5432/campusconnect?schema=public
 ```
 
-Alumni can open their dedicated workspace at `/alumni/dashboard` after signing in. New career resources, opportunity recommendations, and event volunteer requests remain pending until a Placement Officer reviews them. Approved guidance and opportunity recommendations are shown on `/career-resources`.
+For local development when creating a new migration, use `npm run db:migrate`. For a database that already has migrations, apply updates with `npm run db:deploy` and regenerate Prisma Client with `npm run db:generate` before starting the API.
 
-The Vite client runs at `http://localhost:5173`; the API runs at `http://localhost:5000`. Prisma scripts and the server load the root `.env` file. If PostgreSQL uses another port, update the URL accordingly.
+The Vite client runs at `http://localhost:5173`; the API runs at `http://localhost:5000`. The server and Prisma scripts load the root `.env`. Set the database port in `DATABASE_URL` to match your PostgreSQL service.
 
 `db:seed` creates fictional development accounts, a sample verified company, two openings, and a sample student application. It refuses to run unless `NODE_ENV=development`.
 
@@ -75,90 +62,85 @@ The Vite client runs at `http://localhost:5173`; the API runs at `http://localho
 
 These are fictional local-only accounts. Do not use the demo password or seed records in production.
 
-### Environment variables
+Alumni can use `/alumni/dashboard`. Alumni resources, job recommendations, and event volunteer requests remain pending until a Placement Officer reviews them. Approved career guidance and opportunities appear on `/career-resources`.
+
+## Environment variables
 
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Secret used to sign access tokens; replace the example value |
-| `JWT_EXPIRES_IN` | Access-token lifetime, for example `7d` |
+| `JWT_SECRET` | Secret used to sign access tokens; use a strong production value of at least 32 characters |
+| `JWT_EXPIRES_IN` | Access-token lifetime (default `7d`) |
 | `PORT` | API port (default `5000`) |
 | `CLIENT_URL` | Allowed browser origin for API CORS |
-| `VITE_API_URL` | API base URL used by the client |
-| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Server-only credentials for authenticated resume and profile-image uploads |
-| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Optional email sender; delivery remains disabled unless both are configured |
+| `VITE_API_URL` | Client API base URL, including `/api/v1` |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Server-only credentials for authenticated resume and image uploads |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Optional email sender; use a verified sender address |
 | `NODE_ENV` | Runtime mode |
 
-Never commit `.env` or put production credentials in `.env.example`.
+Never commit `.env` or place production credentials in client environment variables.
 
-## Current API
+## API overview
 
-All endpoints use the `/api/v1` prefix.
+All endpoints use the `/api/v1` prefix. Authenticated requests use `Authorization: Bearer <token>`.
 
 | Method | Endpoint | Access |
 | --- | --- | --- |
 | `GET` | `/health` | Public |
-| `POST` | `/auth/register` | Public |
-| `POST` | `/auth/login` | Public |
-| `POST` | `/auth/refresh` | Authenticated |
-| `POST` | `/auth/logout` | Authenticated |
+| `POST` | `/auth/register`, `/auth/login` | Public |
+| `POST` | `/auth/refresh`, `/auth/logout` | Authenticated; logout revokes the current token |
 | `GET` | `/auth/me` | Authenticated |
-| `GET` | `/jobs` | Public, paginated and filterable |
+| `GET` | `/jobs` | Public search/pagination; personalized matching filters require a student |
 | `GET` | `/jobs/:jobId` | Public |
-| `POST` | `/jobs` | Approved recruiter or placement officer |
-| `PATCH` | `/jobs/:jobId` | Approved recruiter for own company or placement officer |
-| `DELETE` | `/jobs/:jobId` | Approved recruiter for own company or placement officer; archives the opening |
-| `POST` | `/companies` | Approved recruiter |
-| `GET` | `/companies` | Public, verified companies |
-| `GET` | `/companies/mine` | Approved recruiter |
+| `POST`, `PATCH`, `DELETE` | `/jobs`, `/jobs/:jobId` | Approved recruiter for own company or Placement Officer |
 | `GET` | `/jobs/mine` | Approved recruiter |
 | `POST` | `/jobs/:jobId/applications` | Student |
-| `GET` | `/applications/my` | Student |
+| `GET` | `/applications/my` | Student; own applications and timeline |
 | `POST` | `/applications/:applicationId/withdraw` | Owning student |
-| `GET` | `/jobs/:jobId/applications` | Owning recruiter or placement officer |
-| `PATCH` | `/applications/:applicationId/status` | Owning recruiter or placement officer |
-| `DELETE` | `/applications/:applicationId/interview` | Owning recruiter or placement officer |
-| `GET` | `/students/me` | Student |
-| `PATCH` | `/students/me` | Student |
-| `POST` | `/students/me/resume` | Student; PDF only, 5 MB max |
-| `GET` | `/students/me/resume` | Student; returns a short-lived private download URL |
-| `POST`, `GET` | `/students/me/profile-image` | Student; upload image or get a short-lived private image URL |
+| `GET` | `/jobs/:jobId/applications` | Owning recruiter or Placement Officer |
+| `PATCH` | `/applications/:applicationId/status` | Owning recruiter or Placement Officer |
+| `DELETE` | `/applications/:applicationId/interview` | Owning recruiter or Placement Officer |
+| `GET` | `/companies` | Public, verified companies |
+| `POST` | `/companies` | Approved recruiter |
+| `GET`, `PATCH` | `/companies/mine` | Approved recruiter; connected company only |
+| `GET`, `PATCH` | `/students/me` | Student |
+| `POST`, `GET` | `/students/me/resume` | Student; PDF upload and private download |
+| `POST`, `GET` | `/students/me/profile-image` | Student; profile image upload and private URL |
 | `GET` | `/students/:studentId/resume` | Recruiter for a company the student applied to, or Placement Officer |
-| `GET` | `/alumni` | Public, public-safe fields with search and pagination |
-| `GET` | `/alumni/:alumniId` | Public, public-safe fields |
+| `GET` | `/alumni`, `/alumni/:alumniId` | Public-safe profile fields |
 | `GET`, `PATCH` | `/alumni/me` | Alumni |
-| `POST` | `/mentorship-requests` | Student |
-| `GET` | `/mentorship-requests` | Student or Alumni, user-scoped |
-| `PATCH` | `/mentorship-requests/:requestId` | Target Alumni, pending requests only |
-| `GET` | `/admin/recruiters/pending` | Placement officer |
-| `PATCH` | `/admin/recruiters/:recruiterId/approval` | Placement officer |
-| `GET` | `/admin/students` | Placement Officer; paginated student search and academic filters |
-| `GET` | `/analytics/overview`, `/analytics/placements`, `/analytics/export.csv` | Placement officer |
-| `GET`, `POST`, `PATCH`, `DELETE` | `/announcements` and `/announcements/:announcementId` | Public list; Placement Officer writes |
-| `GET` | `/placement-drives` | Public list of upcoming drives |
-| `GET` | `/placement-drives/manage` | Placement Officer; list drives for administration |
-| `POST`, `PATCH`, `DELETE` | `/placement-drives` and `/placement-drives/:driveId` | Placement Officer writes |
-| `GET` | `/notifications` | Authenticated, own notifications |
-| `PATCH` | `/notifications/:notificationId/read` | Authenticated, own notification |
+| `POST`, `GET`, `PATCH` | `/mentorship-requests` | Student/alumni; scoped to authorized participants |
+| `GET`, `POST` | `/mentorship-requests/:requestId/messages` | Student/alumni participating in an accepted mentorship |
+| `GET`, `POST` | `/career-resources`, `/opportunity-recommendations` | Public approved listings; alumni submissions |
+| `POST` | `/placement-drives/:driveId/volunteer` | Alumni |
+| `GET` | `/admin/alumni/review` | Placement Officer |
+| `PATCH` | `/admin/alumni/:alumniId/verify` and alumni resource/opportunity/volunteer review routes | Placement Officer |
+| `GET` | `/notifications` | Authenticated user; own notifications |
+| `PATCH` | `/notifications/:notificationId/read` | Owner of the notification |
+| `GET` | `/announcements` | Public, published announcements |
+| `GET` | `/announcements/manage` | Placement Officer; published and unpublished items |
+| `POST`, `PATCH`, `DELETE` | `/announcements` and `/announcements/:announcementId` | Placement Officer |
+| `GET` | `/placement-drives` | Public upcoming drives |
+| `GET` | `/placement-drives/manage` | Placement Officer |
+| `POST`, `PATCH`, `DELETE` | `/placement-drives` and `/placement-drives/:driveId` | Placement Officer |
+| `GET` | `/analytics/overview`, `/analytics/placements`, `/analytics/export.csv` | Placement Officer |
+| `GET` | `/admin/students`, `/admin/recruiters/pending` | Placement Officer |
+| `PATCH` | `/admin/recruiters/:recruiterId/approval` | Placement Officer |
+| `GET` | `/api-docs`, `/api-docs.json` | Swagger UI and OpenAPI specification |
 
-Protected API requests use the `Authorization: Bearer <token>` header. The client keeps its access token in `sessionStorage` and attaches it to API requests.
+## Cloudinary uploads
 
-The current access-token flow remains compatible with the existing frontend. `sessionStorage` limits persistence to the browser tab, but the token is still accessible to JavaScript and therefore vulnerable to XSS; an HttpOnly-cookie/refresh-token migration remains a future hardening task. Configure `CLIENT_URL` to the exact production frontend origin and use HTTPS in production.
+Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on the server only. Resume and profile-image uploads are sent through the server, limited to 5 MB, checked for extension, MIME type, and file signature, and stored with authenticated access. Short-lived resume URLs are limited to the student and authorized recruiters/Placement Officers. Uploads require valid credentials.
 
-### Cloudinary uploads
+## Resend email
 
-Create a Cloudinary account and set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on the server only. Resume and profile-image uploads are sent through the server, limited to 5 MB, checked for extension, MIME type and file signature, and stored with authenticated access. Short-lived resume URLs are limited to the student and authorized recruiters/placement officers; profile-image URLs are available to the student. Without credentials, other features remain available and uploads respond with a setup error.
+Set `RESEND_API_KEY` and a verified `RESEND_FROM_EMAIL` on the server. Email delivery is optional. Provider credentials and actual delivery must be verified in the Resend account; they must never be exposed to the client.
 
-### Resend email setup
+## Render deployment
 
-Set `RESEND_API_KEY` and a verified `RESEND_FROM_EMAIL` on the server. Email delivery is optional; absent credentials disable it without failing registration or placement operations. Provider failures are logged without undoing saved database changes. Do not place either credential in client environment variables.
+The included `render.yaml` defines an API web service and a static React client. Create a managed PostgreSQL database and configure `DATABASE_URL` on the API service. Set `CLIENT_URL` to the deployed static client origin. Set `VITE_API_URL` on the client service to the API URL ending in `/api/v1` (for example, `https://your-api.onrender.com/api/v1`). The client API URL is embedded at build time. The API pre-deploy command applies committed Prisma migrations; deployment requires a reachable database. Configure Cloudinary and Resend values on the API service if those integrations are needed.
 
-## Deployment outline
-
-- **PostgreSQL:** create a managed PostgreSQL database and provide its connection URL as `DATABASE_URL`.
-- **Render API:** deploy the repository root as a Node web service using the included `render.yaml`. Set the server environment variables; the blueprint installs locked dependencies, generates Prisma Client, builds the client, applies production migrations, and starts the server workspace.
-- **Vercel client:** deploy the `client` directory as a Vite app and set `VITE_API_URL` to the deployed API's `/api/v1` URL. The included `client/vercel.json` keeps React Router routes working on refresh.
-- Keep `JWT_SECRET`, database credentials, Cloudinary secrets, and Resend credentials in deployment secret settings; never in source control.
+Keep JWT, database, Cloudinary, and Resend credentials in deployment secret settings, never in source control.
 
 ## Tests and build
 
@@ -167,12 +149,11 @@ From the project root:
 ```powershell
 npm test
 npm run build
+npm run test --workspace client -- --pool=forks --maxWorkers=1 --no-file-parallelism --testTimeout=15000 --hookTimeout=30000
 ```
 
-For the focused client checks, run `npm test --workspace client -- --pool=threads --maxWorkers=1`. The single-worker option avoids Vitest worker startup timeouts in some Windows environments.
+## Operational notes
 
-## Planned next stages
-
-The current milestone implements core student, recruiter, alumni, mentorship, and placement-office workflows. Remaining limitations include persistent refresh-token revocation, alumni profile-image upload, recruiter interview cancellation UI, broader student record editing/deletion, paginated admin datasets at very large scale, and live-provider tests/deployment verification. Supply external credentials and configure hosting before enabling those services in production.
-#   c a m p u s _ c o n n e c t  
- 
+- Application status transitions from before timeline tracking was introduced cannot be reconstructed from current application records; the interface identifies those records as having unavailable earlier history.
+- Logout revokes the current access token, but bearer tokens are stored in `sessionStorage` and remain accessible to JavaScript. An HttpOnly refresh-token/session migration is a separate security improvement.
+- The database migrations, Cloudinary uploads, Resend delivery, and production hosting must be verified with the target services and credentials before claiming a live deployment is operational.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
+import LogoutButton from '../components/LogoutButton';
 
 const resourceDefaults = { title: '', summary: '', url: '', category: 'Interview preparation' };
 const opportunityDefaults = {
@@ -118,6 +119,7 @@ export default function AlumniDashboardPage() {
           <div className="flex flex-wrap gap-2">
             <Link to="/alumni/me" className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold hover:border-slate-500">Edit profile</Link>
             <Link to="/notifications" className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold hover:border-slate-500">Notifications</Link>
+            <LogoutButton className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold hover:border-red-500/50 hover:text-red-200 disabled:opacity-50" />
           </div>
         </header>
 

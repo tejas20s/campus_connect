@@ -9,7 +9,9 @@ const emptyProfile = {
   cgpa: '',
   phone: '',
   skills: '',
-  portfolioLinks: []
+  portfolioLinks: [],
+  certifications: [],
+  projects: []
 };
 
 export default function StudentProfilePage() {
@@ -36,7 +38,9 @@ export default function StudentProfilePage() {
           cgpa: student.cgpa?.toString() || '',
           phone: student.phone || '',
           skills: (student.skills || []).join(', '),
-          portfolioLinks: Object.entries(student.portfolioLinks || {}).map(([label, url]) => ({ label, url }))
+          portfolioLinks: Object.entries(student.portfolioLinks || {}).map(([label, url]) => ({ label, url })),
+          certifications: student.certifications || [],
+          projects: student.projects || []
         });
         setHasResume(student.hasResume);
         if (student.hasProfileImage) {
@@ -72,7 +76,14 @@ export default function StudentProfilePage() {
           profile.portfolioLinks
             .map(({ label, url }) => [label.trim(), url.trim()])
             .filter(([label, url]) => label && url)
-        )
+        ),
+        certifications: profile.certifications.filter((item) => item.name.trim()),
+        projects: profile.projects.filter((item) => item.name.trim()).map((project) => ({
+          ...project,
+          technologies: typeof project.technologies === 'string'
+            ? project.technologies.split(',').map((technology) => technology.trim()).filter(Boolean)
+            : project.technologies || []
+        }))
       });
       setHasResume(data.data.hasResume);
       setMessage('Profile saved.');
@@ -152,6 +163,26 @@ export default function StudentProfilePage() {
       portfolioLinks: current.portfolioLinks.map((link, linkIndex) => (
         linkIndex === index ? { ...link, [field]: value } : link
       ))
+    }));
+  }
+
+  function updateListItem(listName, index, field, value) {
+    setProfile((current) => ({
+      ...current,
+      [listName]: current[listName].map((item, itemIndex) => (
+        itemIndex === index ? { ...item, [field]: value } : item
+      ))
+    }));
+  }
+
+  function addListItem(listName, item) {
+    setProfile((current) => ({ ...current, [listName]: [...current[listName], item] }));
+  }
+
+  function removeListItem(listName, index) {
+    setProfile((current) => ({
+      ...current,
+      [listName]: current[listName].filter((_, itemIndex) => itemIndex !== index)
     }));
   }
 
@@ -241,7 +272,60 @@ export default function StudentProfilePage() {
               }))} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium text-brand-300 hover:border-brand-400/50">
                 Add portfolio link
               </button>
+              <div className="flex flex-wrap gap-2">
+                {['GitHub', 'LinkedIn'].map((label) => (
+                  <button key={label} type="button" onClick={() => {
+                    if (!profile.portfolioLinks.some((link) => link.label.toLowerCase() === label.toLowerCase())) {
+                      addListItem('portfolioLinks', { label, url: '' });
+                    }
+                  }} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:border-slate-500">
+                    Add {label}
+                  </button>
+                ))}
+              </div>
               <p className="text-xs text-slate-500">Incomplete rows are ignored when you save.</p>
+            </fieldset>
+            <fieldset className="space-y-3 sm:col-span-2">
+              <legend className="text-sm text-slate-300">Certifications</legend>
+              {profile.certifications.map((certification, index) => (
+                <div key={`certification-${index}`} className="grid gap-3 rounded-xl border border-slate-800 p-4 sm:grid-cols-2">
+                  <label className="text-xs text-slate-400">Certification name
+                    <input maxLength={160} value={certification.name} onChange={(event) => updateListItem('certifications', index, 'name', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+                  </label>
+                  <label className="text-xs text-slate-400">Issuer
+                    <input maxLength={160} value={certification.issuer || ''} onChange={(event) => updateListItem('certifications', index, 'issuer', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+                  </label>
+                  <label className="text-xs text-slate-400">Date earned
+                    <input maxLength={40} value={certification.issuedAt || ''} onChange={(event) => updateListItem('certifications', index, 'issuedAt', event.target.value)} placeholder="2025" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+                  </label>
+                  <label className="text-xs text-slate-400">Credential URL
+                    <input type="url" maxLength={500} value={certification.url || ''} onChange={(event) => updateListItem('certifications', index, 'url', event.target.value)} placeholder="https://" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+                  </label>
+                  <button type="button" onClick={() => removeListItem('certifications', index)} className="justify-self-start text-sm text-red-200">Remove certification</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => addListItem('certifications', { name: '', issuer: '', issuedAt: '', url: '' })} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium text-brand-300">Add certification</button>
+            </fieldset>
+            <fieldset className="space-y-3 sm:col-span-2">
+              <legend className="text-sm text-slate-300">Projects</legend>
+              {profile.projects.map((project, index) => (
+                <div key={`project-${index}`} className="grid gap-3 rounded-xl border border-slate-800 p-4 sm:grid-cols-2">
+                  <label className="text-xs text-slate-400">Project name
+                    <input maxLength={160} value={project.name} onChange={(event) => updateListItem('projects', index, 'name', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+                  </label>
+                  <label className="text-xs text-slate-400">Technologies (comma-separated)
+                    <input maxLength={1000} value={Array.isArray(project.technologies) ? project.technologies.join(', ') : project.technologies || ''} onChange={(event) => updateListItem('projects', index, 'technologies', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+                  </label>
+                  <label className="text-xs text-slate-400 sm:col-span-2">Description
+                    <textarea maxLength={2000} value={project.description || ''} onChange={(event) => updateListItem('projects', index, 'description', event.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+                  </label>
+                  <label className="text-xs text-slate-400">Project URL
+                    <input type="url" maxLength={500} value={project.url || ''} onChange={(event) => updateListItem('projects', index, 'url', event.target.value)} placeholder="https://" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+                  </label>
+                  <button type="button" onClick={() => removeListItem('projects', index)} className="justify-self-start self-end text-sm text-red-200">Remove project</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => addListItem('projects', { name: '', description: '', technologies: [], url: '' })} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium text-brand-300">Add project</button>
             </fieldset>
           </div>
           <button disabled={saving} className="mt-5 rounded-lg bg-brand-500 px-4 py-2 font-semibold hover:bg-brand-700 disabled:opacity-60">{saving ? 'Saving...' : 'Save profile'}</button>

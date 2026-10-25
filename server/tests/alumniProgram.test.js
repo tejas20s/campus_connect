@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../src/db/prisma.js', () => ({
   prisma: {
+    revokedToken: { findUnique: vi.fn() },
     user: { findUnique: mocks.userFindUnique },
     alumniProfile: { findMany: mocks.alumniFindMany },
     careerResource: { findMany: mocks.careerResourceFindMany, create: mocks.careerResourceCreate },

@@ -42,7 +42,9 @@ const listingQuery = z.object({
   sortBy: z.enum(['createdAt', 'deadline']).default('createdAt'),
   order: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(50).default(12)
+  pageSize: z.coerce.number().int().min(1).max(50).default(12),
+  eligibleOnly: z.enum(['true', 'false']).default('false'),
+  minimumSkillMatch: z.coerce.number().int().min(0).max(100).default(0)
 });
 
 const applicationStatusInput = z.object({
@@ -50,7 +52,8 @@ const applicationStatusInput = z.object({
   scheduledAt: z.string().datetime().optional(),
   mode: z.string().trim().max(100).optional(),
   venue: z.string().trim().max(300).optional(),
-  instructions: z.string().trim().max(2000).optional()
+  instructions: z.string().trim().max(2000).optional(),
+  feedback: z.string().trim().max(2000).optional()
 }).superRefine((data, context) => {
   if (data.status === 'INTERVIEW_SCHEDULED' && !data.scheduledAt) {
     context.addIssue({
@@ -118,6 +121,12 @@ function checkEligibility(criteria, student) {
   return null;
 }
 
+function requireStudentForMatching(req, res, next) {
+  const usesPersonalizedFilters = req.query.eligibleOnly === 'true' || Number(req.query.minimumSkillMatch) > 0;
+  if (!usesPersonalizedFilters) return next();
+  return requireAuth(req, res, () => requireRole('STUDENT')(req, res, next));
+}
+
 router.get('/companies', async (req, res, next) => {
   try {
     const companies = await prisma.company.findMany({
@@ -131,6 +140,42 @@ router.get('/companies', async (req, res, next) => {
   }
 });
 
+/**
+ * @openapi
+ * /companies/mine:
+ *   get:
+ *     summary: Get the signed-in recruiter's company
+ *     tags: [Companies]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: The recruiter's connected company, if configured.
+ *       403:
+ *         description: Approved recruiter role required.
+ *   patch:
+ *     summary: Update the signed-in recruiter's company
+ *     tags: [Companies]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string, maxLength: 120 }
+ *               industry: { type: string, maxLength: 100 }
+ *               website: { type: string, format: uri }
+ *               location: { type: string, maxLength: 120 }
+ *               description: { type: string, maxLength: 4000 }
+ *     responses:
+ *       200:
+ *         description: Company profile updated.
+ *       403:
+ *         description: Approved recruiter role required.
+ */
 router.get('/companies/mine', requireAuth, requireRole('RECRUITER'), requireApprovedRecruiter, async (req, res, next) => {
   try {
     const companyId = req.user.recruiterProfile?.companyId;
@@ -170,6 +215,27 @@ router.post('/companies', requireAuth, requireRole('RECRUITER'), requireApproved
   }
 });
 
+router.patch('/companies/mine', requireAuth, requireRole('RECRUITER'), requireApprovedRecruiter, async (req, res, next) => {
+  try {
+    const companyId = req.user.recruiterProfile?.companyId;
+    if (!companyId) {
+      return res.status(404).json({ success: false, message: 'Your recruiter account is not connected to a company.' });
+    }
+    const payload = parsePayload(companyInput.partial(), req.body, res, 'Invalid company updates.');
+    if (!payload) return;
+    const company = await prisma.company.update({
+      where: { id: companyId },
+      data: { ...payload, ...(payload.website !== undefined && { website: payload.website || null }) }
+    });
+    return res.json({ success: true, data: company });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ success: false, message: 'A company with that name already exists.' });
+    }
+    return next(error);
+  }
+});
+
 router.get('/jobs/mine', requireAuth, requireRole('RECRUITER'), requireApprovedRecruiter, async (req, res, next) => {
   try {
     const companyId = req.user.recruiterProfile?.companyId;
@@ -187,14 +253,51 @@ router.get('/jobs/mine', requireAuth, requireRole('RECRUITER'), requireApprovedR
   }
 });
 
-router.get('/jobs', async (req, res, next) => {
+/**
+ * @openapi
+ * /jobs:
+ *   get:
+ *     summary: Search and paginate published job opportunities
+ *     description: Personalized eligibility and minimum-skill-match filters require an authenticated student account.
+ *     tags: [Jobs]
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         schema: { type: string }
+ *       - in: query
+ *         name: location
+ *         schema: { type: string }
+ *       - in: query
+ *         name: type
+ *         schema: { type: string, enum: [FULL_TIME, INTERNSHIP, PART_TIME, CONTRACT] }
+ *       - in: query
+ *         name: eligibleOnly
+ *         schema: { type: boolean, default: false }
+ *       - in: query
+ *         name: minimumSkillMatch
+ *         schema: { type: integer, minimum: 0, maximum: 100, default: 0 }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: pageSize
+ *         schema: { type: integer, minimum: 1, maximum: 50, default: 12 }
+ *     responses:
+ *       200:
+ *         description: Published jobs and matching pagination metadata.
+ *       401:
+ *         description: Authentication required for personalized filters.
+ *       403:
+ *         description: Personalized filters are available to students only.
+ */
+router.get('/jobs', requireStudentForMatching, async (req, res, next) => {
   try {
     const query = listingQuery.safeParse(req.query);
     if (!query.success) {
       return res.status(400).json({ success: false, message: 'Invalid job filters.', issues: query.error.issues });
     }
 
-    const { q, location, type, company, sortBy, order, page, pageSize } = query.data;
+    const { q, location, type, company, sortBy, order, page, pageSize, eligibleOnly, minimumSkillMatch } = query.data;
     const where = {
       isPublished: true,
       isArchived: false,
@@ -210,6 +313,36 @@ router.get('/jobs', async (req, res, next) => {
         ]
       })
     };
+    if (eligibleOnly === 'true' || minimumSkillMatch > 0) {
+      const student = req.user.studentProfile;
+      if (!student) {
+        return res.status(403).json({ success: false, message: 'A student profile is required for personalized job filters.' });
+      }
+      const candidates = await prisma.job.findMany({
+        where,
+        include: { company: { select: { id: true, name: true, industry: true, location: true, logoUrl: true } } },
+        orderBy: { [sortBy]: order }
+      });
+      const matchingJobs = candidates.filter((job) => {
+        if (eligibleOnly === 'true' && checkEligibility(job.eligibility, student)) return false;
+        const skills = job.eligibility?.skills || [];
+        if (!skills.length) return true;
+        const studentSkills = new Set((student.skills || []).map((skill) => skill.trim().toLowerCase()));
+        const matchedCount = skills.filter((skill) => studentSkills.has(skill.trim().toLowerCase())).length;
+        return (matchedCount / skills.length) * 100 >= minimumSkillMatch;
+      });
+      const skip = (page - 1) * pageSize;
+      return res.json({
+        success: true,
+        data: matchingJobs.slice(skip, skip + pageSize),
+        pagination: {
+          page,
+          pageSize,
+          total: matchingJobs.length,
+          totalPages: Math.ceil(matchingJobs.length / pageSize)
+        }
+      });
+    }
     const [jobs, total] = await Promise.all([
       prisma.job.findMany({
         where,
@@ -363,6 +496,9 @@ router.post('/jobs/:jobId/applications', requireAuth, requireRole('STUDENT'), as
         },
         include: { job: { include: { company: { select: { name: true } } } } }
       });
+      await transaction.applicationStatusEvent.create({
+        data: { applicationId: created.id, status: 'APPLIED', actorId: req.user.id }
+      });
       await transaction.notification.create({
         data: {
           userId: req.user.id,
@@ -387,6 +523,18 @@ router.post('/jobs/:jobId/applications', requireAuth, requireRole('STUDENT'), as
   }
 });
 
+/**
+ * @openapi
+ * /applications/my:
+ *   get:
+ *     summary: List the signed-in student's applications, interview details, and status timeline
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Applications are scoped to the authenticated student.
+ */
 router.get('/applications/my', requireAuth, requireRole('STUDENT'), async (req, res, next) => {
   try {
     if (!req.user.studentProfile) {
@@ -396,7 +544,8 @@ router.get('/applications/my', requireAuth, requireRole('STUDENT'), async (req, 
       where: { studentId: req.user.studentProfile.id },
       include: {
         job: { include: { company: { select: { id: true, name: true, logoUrl: true } } } },
-        interview: true
+        interview: true,
+        statusHistory: { orderBy: { createdAt: 'asc' } }
       },
       orderBy: { appliedAt: 'desc' }
     });
@@ -442,6 +591,39 @@ router.get('/jobs/:jobId/applications', requireAuth, requireRole('RECRUITER', 'P
   }
 });
 
+/**
+ * @openapi
+ * /applications/{applicationId}/status:
+ *   patch:
+ *     summary: Update an application status and append student-visible recruiter feedback
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: applicationId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status: { type: string }
+ *               feedback: { type: string, maxLength: 2000 }
+ *               scheduledAt: { type: string, format: date-time }
+ *               mode: { type: string }
+ *               venue: { type: string }
+ *               instructions: { type: string }
+ *     responses:
+ *       200:
+ *         description: Updated status and status history.
+ *       403:
+ *         description: Recruiter does not own the job.
+ */
 router.patch('/applications/:applicationId/status', requireAuth, requireRole('RECRUITER', 'PLACEMENT_OFFICER'), requireRecruiterApprovalIfNeeded, async (req, res, next) => {
   try {
     const payload = parsePayload(applicationStatusInput, req.body, res, 'Invalid application status update.');
@@ -480,16 +662,27 @@ router.patch('/applications/:applicationId/status', requireAuth, requireRole('RE
           update: { scheduledAt: new Date(scheduledAt), ...interviewDetails, status: 'SCHEDULED' }
         });
       }
+      await transaction.applicationStatusEvent.create({
+        data: {
+          applicationId: application.id,
+          status: payload.status,
+          feedback: payload.feedback || null,
+          actorId: req.user.id
+        }
+      });
       const updatedApplication = await transaction.application.update({
         where: { id: application.id },
         data: { status: payload.status },
-        include: { interview: true }
+        include: { interview: true, statusHistory: { orderBy: { createdAt: 'asc' } } }
       });
       await transaction.notification.create({
         data: {
           userId: application.student.user.id,
           title: 'Application status updated',
-          message: `Your application for ${application.job.title} is now ${payload.status.replaceAll('_', ' ').toLowerCase()}.`,
+          message: [
+            `Your application for ${application.job.title} is now ${payload.status.replaceAll('_', ' ').toLowerCase()}.`,
+            payload.feedback && `Recruiter feedback: ${payload.feedback}`
+          ].filter(Boolean).join(' '),
           link: '/applications'
         }
       });
@@ -515,7 +708,10 @@ router.patch('/applications/:applicationId/status', requireAuth, requireRole('RE
         subject: `Application update: ${application.job.title}`,
         html: emailLayout(
           'Application update',
-          `Your application for ${application.job.title} is now ${payload.status.replaceAll('_', ' ').toLowerCase()}.`
+          [
+            `Your application for ${application.job.title} is now ${payload.status.replaceAll('_', ' ').toLowerCase()}.`,
+            payload.feedback && `Recruiter feedback: ${payload.feedback}`
+          ].filter(Boolean).join(' ')
         )
       });
     }
@@ -548,10 +744,18 @@ router.delete('/applications/:applicationId/interview', requireAuth, requireRole
         where: { applicationId: application.id },
         data: { status: 'CANCELLED' }
       });
+      await transaction.applicationStatusEvent.create({
+        data: {
+          applicationId: application.id,
+          status: 'SHORTLISTED',
+          feedback: 'The scheduled interview was cancelled.',
+          actorId: req.user.id
+        }
+      });
       const updatedApplication = await transaction.application.update({
         where: { id: application.id },
         data: { status: 'SHORTLISTED' },
-        include: { interview: true }
+        include: { interview: true, statusHistory: { orderBy: { createdAt: 'asc' } } }
       });
       await transaction.notification.create({
         data: {
@@ -585,9 +789,16 @@ router.post('/applications/:applicationId/withdraw', requireAuth, requireRole('S
     if (['SELECTED', 'REJECTED', 'WITHDRAWN'].includes(application.status)) {
       return res.status(409).json({ success: false, message: `An application with status ${application.status} cannot be withdrawn.` });
     }
-    const updated = await prisma.application.update({
-      where: { id: application.id },
-      data: { status: 'WITHDRAWN' }
+    const updated = await prisma.$transaction(async (transaction) => {
+      await transaction.applicationStatusEvent.create({
+        data: { applicationId: application.id, status: 'WITHDRAWN', actorId: req.user.id }
+      });
+      const withdrawn = await transaction.application.update({
+        where: { id: application.id },
+        data: { status: 'WITHDRAWN' },
+        include: { interview: true, statusHistory: { orderBy: { createdAt: 'asc' } } }
+      });
+      return withdrawn;
     });
     return res.json({ success: true, data: updated });
   } catch (error) {

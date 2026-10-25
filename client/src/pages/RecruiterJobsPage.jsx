@@ -3,13 +3,24 @@ import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 
 const initialCompany = { name: '', industry: '', website: '', location: '', description: '' };
-const initialJob = { title: '', description: '', location: '', type: 'FULL_TIME', deadline: '', salaryMin: '', salaryMax: '' };
+const initialJob = { title: '', description: '', location: '', type: 'FULL_TIME', deadline: '', salaryMin: '', salaryMax: '', eligibilityBranches: '', eligibilityGraduationYears: '', eligibilityMinCgpa: '', eligibilitySkills: '' };
+
+function toDateTimeInput(value) {
+  const date = new Date(value);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function parseList(value) {
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
 
 export default function RecruiterJobsPage() {
   const [company, setCompany] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [companyForm, setCompanyForm] = useState(initialCompany);
   const [jobForm, setJobForm] = useState(initialJob);
+  const [editingCompany, setEditingCompany] = useState(false);
+  const [editingJobId, setEditingJobId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -55,26 +66,79 @@ export default function RecruiterJobsPage() {
     }
   }
 
+  async function saveCompany(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const { data } = await api.patch('/companies/mine', companyForm);
+      setCompany(data.data);
+      setEditingCompany(false);
+      setMessage('Company profile updated.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to update company details.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function createJob(event) {
     event.preventDefault();
     setSaving(true);
     setError('');
     setMessage('');
     try {
-      await api.post('/jobs', {
-        ...jobForm,
+      const {
+        eligibilityBranches,
+        eligibilityGraduationYears,
+        eligibilityMinCgpa,
+        eligibilitySkills,
+        ...jobFields
+      } = jobForm;
+      const branches = parseList(eligibilityBranches);
+      const graduationYears = parseList(eligibilityGraduationYears).map(Number);
+      const minCgpa = eligibilityMinCgpa === '' ? undefined : Number(eligibilityMinCgpa);
+      const skills = parseList(eligibilitySkills);
+      const payload = {
+        ...jobFields,
         deadline: new Date(jobForm.deadline).toISOString(),
         salaryMin: jobForm.salaryMin ? Number(jobForm.salaryMin) : null,
-        salaryMax: jobForm.salaryMax ? Number(jobForm.salaryMax) : null
-      });
+        salaryMax: jobForm.salaryMax ? Number(jobForm.salaryMax) : null,
+        eligibility: branches.length || graduationYears.length || minCgpa !== undefined || skills.length
+          ? { branches, graduationYears, minCgpa, skills }
+          : null
+      };
+      if (editingJobId) await api.patch(`/jobs/${editingJobId}`, payload);
+      else await api.post('/jobs', payload);
+      const wasEditing = Boolean(editingJobId);
       setJobForm(initialJob);
+      setEditingJobId('');
       await loadDashboard();
-      setMessage('Job saved as a draft. Publish it when it is ready.');
+      setMessage(wasEditing ? 'Job opening updated.' : 'Job saved as a draft. Publish it when it is ready.');
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to create job opening.');
     } finally {
       setSaving(false);
     }
+  }
+
+  function editJob(job) {
+    setEditingJobId(job.id);
+    setJobForm({
+      title: job.title,
+      description: job.description,
+      location: job.location,
+      type: job.type,
+      deadline: toDateTimeInput(job.deadline),
+      salaryMin: job.salaryMin == null ? '' : String(job.salaryMin),
+      salaryMax: job.salaryMax == null ? '' : String(job.salaryMax),
+      eligibilityBranches: (job.eligibility?.branches || []).join(', '),
+      eligibilityGraduationYears: (job.eligibility?.graduationYears || []).join(', '),
+      eligibilityMinCgpa: job.eligibility?.minCgpa == null ? '' : String(job.eligibility.minCgpa),
+      eligibilitySkills: (job.eligibility?.skills || []).join(', ')
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function updateJob(jobId, updates) {
@@ -147,10 +211,22 @@ export default function RecruiterJobsPage() {
               <p className="text-sm text-brand-300">Company profile</p>
               <h2 className="mt-1 text-2xl font-semibold">{company.name}</h2>
               <p className="mt-2 text-sm text-slate-400">{[company.industry, company.location].filter(Boolean).join(' · ') || 'Add further company details through placement-office support.'}</p>
+              {editingCompany ? (
+                <form onSubmit={saveCompany} className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <label className="text-sm text-slate-300">Company name<input required minLength={2} maxLength={120} value={companyForm.name} onChange={(event) => setCompanyForm({ ...companyForm, name: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" /></label>
+                  <label className="text-sm text-slate-300">Industry<input maxLength={100} value={companyForm.industry} onChange={(event) => setCompanyForm({ ...companyForm, industry: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" /></label>
+                  <label className="text-sm text-slate-300">Website<input type="url" value={companyForm.website} onChange={(event) => setCompanyForm({ ...companyForm, website: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" /></label>
+                  <label className="text-sm text-slate-300">Location<input maxLength={120} value={companyForm.location} onChange={(event) => setCompanyForm({ ...companyForm, location: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" /></label>
+                  <label className="text-sm text-slate-300 sm:col-span-2">About the company<textarea rows={3} maxLength={4000} value={companyForm.description} onChange={(event) => setCompanyForm({ ...companyForm, description: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" /></label>
+                  <div className="flex gap-2 sm:col-span-2"><button disabled={saving} className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold disabled:opacity-60">Save company</button><button type="button" onClick={() => setEditingCompany(false)} className="rounded-lg border border-slate-700 px-4 py-2 text-sm">Cancel</button></div>
+                </form>
+              ) : (
+                <button type="button" onClick={() => { setCompanyForm({ name: company.name, industry: company.industry || '', website: company.website || '', location: company.location || '', description: company.description || '' }); setEditingCompany(true); }} className="mt-4 rounded-lg border border-slate-700 px-3 py-2 text-sm hover:border-brand-400">Edit company profile</button>
+              )}
             </section>
 
             <form onSubmit={createJob} className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-6">
-              <h2 className="text-xl font-semibold">Create a job opening</h2>
+              <h2 className="text-xl font-semibold">{editingJobId ? 'Edit job opening' : 'Create a job opening'}</h2>
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
                 <label className="text-sm text-slate-300">
                   Role title
@@ -185,8 +261,15 @@ export default function RecruiterJobsPage() {
                   Description
                   <textarea required minLength={20} maxLength={12000} rows={5} value={jobForm.description} onChange={(event) => setJobForm({ ...jobForm, description: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-brand-500" />
                 </label>
+                <fieldset className="grid gap-4 rounded-xl border border-slate-700 p-4 sm:col-span-2 sm:grid-cols-2">
+                  <legend className="px-2 text-sm font-semibold text-brand-200">Eligibility requirements (optional)</legend>
+                  <label className="text-sm text-slate-300">Branches, comma-separated<input value={jobForm.eligibilityBranches} onChange={(event) => setJobForm({ ...jobForm, eligibilityBranches: event.target.value })} placeholder="Computer Science, Information Technology" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" /></label>
+                  <label className="text-sm text-slate-300">Graduation years, comma-separated<input value={jobForm.eligibilityGraduationYears} onChange={(event) => setJobForm({ ...jobForm, eligibilityGraduationYears: event.target.value })} placeholder="2026, 2027" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" /></label>
+                  <label className="text-sm text-slate-300">Minimum CGPA<input type="number" min="0" max="10" step="0.01" value={jobForm.eligibilityMinCgpa} onChange={(event) => setJobForm({ ...jobForm, eligibilityMinCgpa: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" /></label>
+                  <label className="text-sm text-slate-300">Required skills, comma-separated<input value={jobForm.eligibilitySkills} onChange={(event) => setJobForm({ ...jobForm, eligibilitySkills: event.target.value })} placeholder="JavaScript, SQL, React" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" /></label>
+                </fieldset>
               </div>
-              <button disabled={saving} className="mt-5 rounded-lg bg-brand-500 px-4 py-2 font-semibold hover:bg-brand-700 disabled:opacity-60">{saving ? 'Saving...' : 'Save as draft'}</button>
+              <div className="mt-5 flex gap-2"><button disabled={saving} className="rounded-lg bg-brand-500 px-4 py-2 font-semibold hover:bg-brand-700 disabled:opacity-60">{saving ? 'Saving...' : editingJobId ? 'Save changes' : 'Save as draft'}</button>{editingJobId && <button type="button" onClick={() => { setEditingJobId(''); setJobForm(initialJob); }} className="rounded-lg border border-slate-700 px-4 py-2 text-sm">Cancel edit</button>}</div>
             </form>
           </>
         )}
@@ -204,6 +287,7 @@ export default function RecruiterJobsPage() {
                   {!job.isArchived && (
                     <div className="flex gap-2">
                       <Link to={`/recruiter/jobs/${job.id}/applications`} className="rounded-lg border border-slate-700 px-3 py-2 text-sm hover:border-slate-500">Applicants</Link>
+                      <button type="button" disabled={saving} onClick={() => editJob(job)} className="rounded-lg border border-slate-700 px-3 py-2 text-sm hover:border-slate-500 disabled:opacity-60">Edit</button>
                       <button type="button" disabled={saving} onClick={() => updateJob(job.id, { isPublished: !job.isPublished })} className="rounded-lg border border-slate-700 px-3 py-2 text-sm hover:border-slate-500 disabled:opacity-60">
                         {job.isPublished ? 'Unpublish' : 'Publish'}
                       </button>

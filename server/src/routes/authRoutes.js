@@ -1,4 +1,5 @@
 import express from 'express';
+import { createHash } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -206,11 +207,37 @@ router.post('/refresh', requireAuth, (req, res) => {
   });
 });
 
-router.post('/logout', requireAuth, (req, res) => {
-  return res.json({
-    success: true,
-    message: 'Logged out successfully.'
-  });
+/**
+ * @openapi
+ * /auth/logout:
+ *   post:
+ *     summary: Revoke the current access token
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Session token revoked.
+ *       401:
+ *         description: Missing, invalid, expired, or previously revoked token.
+ */
+router.post('/logout', requireAuth, async (req, res, next) => {
+  try {
+    const expiresAt = req.authToken?.payload?.exp;
+    if (!expiresAt) {
+      return res.status(401).json({ success: false, message: 'The session token has no valid expiration.' });
+    }
+    const tokenHash = createHash('sha256').update(req.authToken.token).digest('hex');
+    await prisma.revokedToken.upsert({
+      where: { tokenHash },
+      create: { tokenHash, expiresAt: new Date(expiresAt * 1000) },
+      update: { expiresAt: new Date(expiresAt * 1000) }
+    });
+    await prisma.revokedToken.deleteMany({ where: { expiresAt: { lte: new Date() } } });
+    return res.json({ success: true, message: 'Logged out successfully.' });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 router.get('/me', requireAuth, async (req, res) => {

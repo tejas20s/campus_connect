@@ -97,6 +97,19 @@ function parseInput(schema, input, res, message) {
   return parsed.data;
 }
 
+async function findAlumniSkillMatchIds(term) {
+  const matches = await prisma.$queryRaw`
+    SELECT "id"
+    FROM "AlumniProfile"
+    WHERE "isPublic" = TRUE
+      AND (
+        EXISTS (SELECT 1 FROM unnest("AlumniProfile"."skills") AS skill(value) WHERE LOWER(skill.value) = LOWER(${term}))
+        OR EXISTS (SELECT 1 FROM unnest("AlumniProfile"."mentoringTopics") AS topic(value) WHERE LOWER(topic.value) = LOWER(${term}))
+      )
+  `;
+  return matches.map(({ id }) => id);
+}
+
 /**
  * @openapi
  * /alumni:
@@ -135,19 +148,13 @@ router.get('/alumni', async (req, res, next) => {
         ...['fullName', 'department', 'currentCompany', 'jobTitle', 'bio', 'professionalExperience'].map((field) => ({
           [field]: { contains: query.q, mode: 'insensitive' }
         })),
-        { skills: { has: query.q } },
-        { mentoringTopics: { has: query.q } }
+        { id: { in: await findAlumniSkillMatchIds(query.q) } }
       ]
       : [];
     const filterGroups = [];
     if (searchTerms.length) filterGroups.push({ OR: searchTerms });
     if (query.skill) {
-      filterGroups.push({
-        OR: [
-          { skills: { has: query.skill } },
-          { mentoringTopics: { has: query.skill } }
-        ]
-      });
+      filterGroups.push({ id: { in: await findAlumniSkillMatchIds(query.skill) } });
     }
     const where = {
       isPublic: true,
