@@ -1,0 +1,11 @@
+node_modules
+.env
+.env.local
+.env.*
+!.env.example
+client/dist
+server/dist
+coverage
+npm-debug.log*
+.DS_Store
+prisma/dev.db

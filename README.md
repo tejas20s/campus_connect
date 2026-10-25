@@ -2,7 +2,7 @@
 
 CampusConnect is a college placement and alumni portal built with React, Express, PostgreSQL, and Prisma.
 
-## Implementedp
+## Implemented
 
 - Responsive landing page, sign-in, registration, jobs, opportunity details, application tracking, and dashboard views.
 - Recruiter company setup, job-draft creation, publishing, archiving, applicant review, and interview scheduling screens; placement-office recruiter approval screen.
@@ -10,13 +10,13 @@ CampusConnect is a college placement and alumni portal built with React, Express
 - Public registration for students and alumni; recruiter accounts require placement-office approval. Placement Officer accounts cannot be created through public registration.
 - Role-protected, validated job and application APIs.
 - Searchable, filterable, paginated public job listings.
-- Eligibility checks and database-backed duplicate-application prevention.
+- Student-specific branch, graduation year, CGPA, and skill matching on job listings and details, with missing-requirement explanations and skill recommendations; API-side eligibility checks and database-backed duplicate-application prevention remain authoritative.
 - Application status updates, interview scheduling data, and in-app application status notifications.
 - Student profile editing, private JPEG/PNG profile-image and PDF resume uploads with MIME/signature/size checks, and short-lived private Cloudinary URLs.
 - Public alumni directory with search/filter/pagination, profile privacy control, and student-to-alumni mentorship requests with accepted/declined transitions.
 - Placement Officer analytics, filters, Recharts visualizations, selected-placement CSV export, announcements, placement drives, and recruiter approval.
 - Placement Officer student registry with search, academic filters, pagination, and privacy-safe application totals.
-- Per-user notifications and read status; optional Resend messages for registration, applications, and status/interview updates.
+- Per-user notifications and read status; optional Resend messages for registration, applications, and status/interview updates using a branded, escaped email template.
 - API and authentication rate limits, production secret checks, and transactional recruiter-approval audit records.
 - Prisma schema for users, student/recruiter/alumni profiles, companies, jobs, applications, interviews, drives, announcements, mentorship requests, notifications, and audit logs.
 - Swagger UI at `/api-docs` and OpenAPI JSON at `/api-docs.json`.
